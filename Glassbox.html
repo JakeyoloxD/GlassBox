@@ -217,6 +217,17 @@ button:active{background:var(--line)}
 #optbar button{height:22px;padding:0 8px;font:10px var(--ui);background:var(--panel-3);border:1px solid var(--line);border-radius:4px;color:var(--text-2)}#optbar button:hover{color:var(--text);background:var(--raised)}
 #app.ribbon-buttons{--ribbon-h:66px}#app.ribbon-buttons .rpanel-label{display:none}#app.ribbon-buttons .rpanels{min-height:36px;align-items:center}#app.ribbon-buttons .big{min-height:34px;width:48px;padding-top:3px}#app.ribbon-buttons .big span{display:none}#app.ribbon-buttons .big svg{width:20px;height:20px}#app.ribbon-buttons .small{min-width:36px;width:36px;padding:3px;justify-content:center}#app.ribbon-buttons .small span{display:none}#app.ribbon-buttons .small svg{width:18px;height:18px}
 #app.ribbon-tabs{--ribbon-h:29px}#app.ribbon-tabs .rpanels{display:none}
+
+/* Icon-only ribbon: a .rstack keeps three buttons stacked vertically (~78px)
+   inside a 36px centred panel row, so it overflowed ~21px upward and the top
+   button ended up underneath the tab strip - visible but unclickable. In this
+   state the stack must run horizontally, and the tab strip gets its own
+   stacking context so nothing can ever paint over it again. */
+#app.ribbon-buttons .rstack{flex-direction:row;gap:2px;align-items:center}
+#app.ribbon-buttons .rstack .small{height:28px;min-height:28px}
+#app.ribbon-buttons .rpanels{overflow:visible}
+.rtabs{position:relative;z-index:3;background:var(--panel)}
+.rpanels{position:relative;z-index:1}
 #app.inspector-hidden #main{grid-template-columns:minmax(0,1fr)}#app.inspector-hidden #inspector{display:none}
 #stage.no-grid{background-image:none!important}
 #inspector .sec.error-sec h3{color:#e7a19c}.compute-error{padding:7px 9px;color:#e7a19c;font:9.5px/1.5 var(--mono);background:#241b1d;border:1px solid #58363a;border-radius:3px;margin:7px 9px}
@@ -404,6 +415,26 @@ button,input,select,textarea{font-family:var(--ui)}
 .trace-readable .trace-group span{color:#8f9caa;font:9.5px/1.4 var(--ui)}
 @media(max-width:700px){.gb-start-steps{grid-template-columns:1fr 1fr}.gb-welcome,.gb-glossary{padding:17px}}
 
+/* Narrow viewports: the top bar was flex-wrap:nowrap at a fixed 809px while
+   body had overflow-x:hidden, so on a phone the New/Open/Save/Undo/Redo
+   buttons were clipped off the right edge and unreachable - not merely ugly.
+   Drop the decorative items first, then let the action row scroll. */
+@media(max-width:620px){
+  #topbar{overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+  #topbar::-webkit-scrollbar{height:0}
+  #thesis,#topbar .analysis-badge{display:none}
+  #topbar .doc-tab{min-width:0;max-width:34vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #topbar .spacer{flex:0 0 4px}
+  .top-action{flex:0 0 auto}
+  #ribbon{overflow-x:auto;scrollbar-width:none}
+  #ribbon::-webkit-scrollbar{height:0}
+  #cmdrow{flex-wrap:nowrap}
+}
+@media(max-width:430px){
+  #brand span{display:none}
+  #topbar .doc-tab{display:none}
+}
+
 </style>
 </head>
 <body>
@@ -474,7 +505,7 @@ button,input,select,textarea{font-family:var(--ui)}
 
 <div id="gbTooltip" role="tooltip" aria-hidden="true"></div>
 
-<div id="welcomeOverlay" class="gb-overlay">
+<div id="welcomeOverlay" class="gb-overlay" hidden>
   <div class="gb-welcome" role="dialog" aria-modal="true" aria-labelledby="welcomeTitle">
     <div class="gb-kicker">GLASSBOX</div>
     <h1 id="welcomeTitle">Cryptography you can interrogate</h1>
@@ -717,7 +748,11 @@ function snapshot(label){
 }
 function restore(blob){
   const doc = safeParse(blob);
+  // The camera persists in the file but is not an undo step: undoing an edit
+  // should not also teleport the viewport away from what you were looking at.
+  const camera = S.doc && S.doc.view ? { x: S.doc.view.x, y: S.doc.view.y, z: S.doc.view.z } : null;
   S.doc = doc;
+  if (camera) S.doc.view = camera;
   S.selection.clear();
   S.semantic = null;
   COMPUTED.clear(); CACHE.clear();               // I1: always regenerate
@@ -1051,13 +1086,19 @@ registerResolver("influence-cell", (f, A) => {
   if (sb){
     addRelatedObject(A, sbEid, "context");
     const n = 1 << sb.bits;
-    for (let x = 0; x < n; x++){
-      if ((sb.table[x] ^ sb.table[x ^ dx]) >> j & 1){
-        A.add({ t: "in", x }, "context");
-        A.add({ t: "map", x, y: sb.table[x] }, "context");
-        A.add({ t: "pair", x0: Math.min(x, x ^ dx), x1: Math.max(x, x ^ dx) }, "context");
+    // Roughly half the S-box satisfies this at 8 bits, so the per-x guard that
+    // every other resolver honours applies here too: lighting 132 of 256
+    // mappings is a wash of colour, not a finding.
+    let hits = 0;
+    for (let x = 0; x < n; x++) if ((sb.table[x] ^ sb.table[x ^ dx]) >> j & 1) hits++;
+    if (hits <= ATOM_GUARD.perX)
+      for (let x = 0; x < n; x++){
+        if ((sb.table[x] ^ sb.table[x ^ dx]) >> j & 1){
+          A.add({ t: "in", x }, "context");
+          A.add({ t: "map", x, y: sb.table[x] }, "context");
+          A.add({ t: "pair", x0: Math.min(x, x ^ dx), x1: Math.max(x, x ^ dx) }, "context");
+        }
       }
-    }
 
     const ddtEid = dependentOfType(sbEid, "analysis.ddt");
     const ddt = ddtEid && COMPUTED.get(ddtEid);
@@ -1107,6 +1148,9 @@ registerResolver("lat-cell", (f, A) => {
       if (a >> i & 1) A.add({ t: "bitIn", i }, "context");
       if (b >> i & 1) A.add({ t: "bitOut", j: i }, "context");
     }
+    const infEid = dependentOfType(sbEid, "analysis.influence");
+    if (linkCorrelationToInfluence(A, a, b, sb.bits, "contributing", "context"))
+      addRelatedObject(A, infEid, "context");
   }
   linkAnnotations(A);
 });
@@ -1128,6 +1172,9 @@ registerResolver("walsh-coefficient", (f, A) => {
 
   for (let i = 0; i < w.bits; i++) if (a >> i & 1) A.add({ t: "bitIn", i }, "context");
   for (let j = 0; j < w.bits; j++) if (b >> j & 1) A.add({ t: "bitOut", j }, "context");
+  const sbE = sourceOfType(latEid, "crypto.sbox");
+  if (linkCorrelationToInfluence(A, a, b, w.bits, "contributing", "context"))
+    addRelatedObject(A, dependentOfType(sbE, "analysis.influence"), "context");
   linkAnnotations(A);
 });
 
@@ -1164,6 +1211,14 @@ registerResolver("anf-monomial", (f, A) => {
   A.add({ t: "mono", m }, "primary");
   for (let i = 0; i < anf.bits; i++) if (m >> i & 1) A.add({ t: "bitIn", i }, "contributing");
   for (let j = 0; j < anf.bits; j++) if (c >> j & 1) A.add({ t: "bitOut", j }, "contributing");
+  // Output bit j can only depend on input bit i if some monomial containing x_i
+  // appears in bit j's ANF. This monomial is exactly such a witness, so it maps
+  // to the influence cells (i, j) for i in its support and j in its coefficient.
+  for (let i = 0; i < anf.bits; i++){
+    if (!(m >> i & 1)) continue;
+    for (let j = 0; j < anf.bits; j++)
+      if (c >> j & 1) A.add({ t: "bitPair", i, j }, "contributing");
+  }
   const sbEid = sourceOfType(f.eid, "crypto.sbox") || sourcesOf(f.eid)[0];
   const sb = COMPUTED.get(sbEid);
   if (sb){
@@ -1241,6 +1296,36 @@ registerResolver("aes-stage", (f, A) => {
  *  the resolver emits structure (masks, components, bits) and lets the summary
  *  carry the count, rather than lighting half the S-box. */
 const ATOM_GUARD = Object.freeze({ perX: 64 });
+
+
+/**
+ * Link a linear correlation to the bit-influence grid.
+ *
+ * These were previously unlinked: a LAT or Walsh selection emitted bitIn/bitOut
+ * for the mask bits but never a bitPair, and the influence grid matches cells
+ * on bitPair only - so clicking a LAT cell lit nothing there at all.
+ *
+ * The relationship is exact, via Wiener-Khinchin. For a single output bit j,
+ * with component b = e_j and W_b(a) = 2*LAT[a][b]:
+ *
+ *     r_j(dx) = (1/N) * SUM_a W_b(a)^2 * (-1)^<a,dx>
+ *     INF[i][j] = ( N - r_j(e_i) ) / 2
+ *
+ * so the whole LAT column for b = e_j determines influence column j, and this
+ * one coefficient contributes W^2 to every cell in that column, negatively
+ * where a has bit i set. Those are the cells it pushes toward more avalanche.
+ *
+ * A multi-bit b is a parity combination, not an output bit, so no cell-level
+ * link exists and none is claimed - only the axis context of the mask bits.
+ */
+function linkCorrelationToInfluence(A, a, b, bits, tierHit, tierRest){
+  const j = Math.log2(b);
+  if (!Number.isInteger(j) || b === 0) return false;      // multi-bit mask: no output bit
+  for (let i = 0; i < bits; i++)
+    A.add({ t: "bitPair", i, j }, (a >> i & 1) ? tierHit : tierRest);
+  A.add({ t: "bitOut", j }, tierHit);
+  return true;
+}
 
 /** Annotations join the atom set by declaring links, not by knowing crypto. */
 function linkAnnotations(A){
@@ -1735,7 +1820,22 @@ function resize(){
   cv.height = Math.max(1, Math.floor(r.height * DPR));
   requestDraw();
 }
-const V = S.doc.view;
+/**
+ * Live camera accessor.
+ *
+ * This was `const V = S.doc.view`, a reference captured once at load. restore()
+ * assigns `S.doc = doc`, so the first undo - including the one inside AC10,
+ * which runs at boot via runSelfTests() - left V pointing at an orphaned
+ * object. Rendering still followed V so nothing looked wrong, but S.doc.view
+ * was frozen at its initial value, meaning saved .glass files recorded the
+ * wrong camera and the view could never round-trip. A getter keeps every
+ * existing V.x / V.z call site working while always reaching the live document.
+ */
+const V = {
+  get x(){ return S.doc.view.x; }, set x(v){ S.doc.view.x = v; },
+  get y(){ return S.doc.view.y; }, set y(v){ S.doc.view.y = v; },
+  get z(){ return S.doc.view.z; }, set z(v){ S.doc.view.z = v; }
+};
 const w2s = p => ({ x: (p.x - V.x) * V.z, y: (p.y - V.y) * V.z });
 const s2w = p => ({ x: p.x / V.z + V.x, y: p.y / V.z + V.y });
 
@@ -1882,12 +1982,33 @@ const RENDER = Object.create(null);
 /* ---------- colour mapping: domain-aware, not a generic gradient ---------- */
 const COLOUR = {
   /** DDT is almost all 0 and 2 with rare 4s. A linear ramp renders as noise. */
-  categorical(v, distinct){
+  /**
+   * Rarity-weighted, not rank-weighted.
+   *
+   * The AES DDT is 50.6% zeros, 49.0% twos, 0.4% fours. Spacing colours by rank
+   * gave each step an equal ~35 luminance jump, so half the contrast budget was
+   * spent separating the two values that carry no information, and the 4s -
+   * the differential uniformity, the thing you are looking for - were no more
+   * visible than the background. Weighting by how rare a value is collapses the
+   * common bulk into near-flat dark and lets the outliers carry the contrast.
+   */
+  categorical(v, distinct, histogram, total){
     if (v === 0) return [16, 22, 30];
-    const i = distinct.indexOf(v), k = Math.max(1, distinct.length - 1);
-    const t = i / k;
-    return [40 + 200 * t, 60 + 90 * t, 90 - 30 * t];
+    let t;
+    if (histogram && total){
+      const n = histogram.get(v) || 1;
+      // log rarity, normalised against the rarest value present
+      const rare = Math.log(total / n);
+      const maxRare = Math.log(total);
+      t = Math.min(1, rare / (maxRare || 1));
+    } else {
+      const i = distinct.indexOf(v), k = Math.max(1, distinct.length - 1);
+      t = i / k;
+    }
+    const e = Math.pow(t, 0.75);
+    return [34 + 215 * e, 52 + 105 * e, 78 - 18 * e];
   },
+
   /** Signed data (LAT, Walsh) clusters hard at zero with rare extremes at the
    *  tails. Those extremes are the only interesting cells, so rank the
    *  magnitude rather than scaling it linearly. */
@@ -1942,7 +2063,7 @@ RENDER["view.matrix"] = {
         const v = data.m[r * n + col];
         if (thr != null && (data.signed ? Math.abs(v) : v) < thr) return [14, 19, 26];
         return mode === "diverging"   ? COLOUR.diverging(v, data.maxAbs || max)
-             : mode === "categorical" ? COLOUR.categorical(v, data.distinct)
+             : mode === "categorical" ? COLOUR.categorical(v, data.distinct, data.histogram, n * n)
              :                          COLOUR.ramp(v, max);
       });
       cacheSet(key, ras);
@@ -2723,14 +2844,23 @@ function paintDeps(){
 //#region 18 COMMAND SYSTEM
 /* I5: allow-listed dispatch only. No eval, no new Function, ever. */
 const COMMANDS = Object.create(null);
-COMMANDS.help  = () => say("set <x> <y> | aes <x> | mul <a> <b> | walsh <a> [b] | fit | clear | perturb | test | undo | redo | save");
+COMMANDS.welcome = () => { clearWelcomeSeen(); document.getElementById("welcomeOverlay").hidden = false; say("welcome shown"); };
+COMMANDS.help  = () => say("set <x> <y> | aes <x> | mul <a> <b> | walsh <a> [b] | fit | clear | perturb | welcome | test | undo | redo | save");
 COMMANDS.fit   = () => zoomExtents();
 COMMANDS.clear = () => { clearSemantic(); S.selection.clear(); paintObj(); say("cleared"); };
 COMMANDS.test  = () => runSelfTests();
 COMMANDS.undo  = () => undo();
 COMMANDS.redo  = () => redo();
 COMMANDS.save  = () => saveDoc();
-COMMANDS.perturb = () => perturb();
+/** Was `() => perturb()`, but that helper was removed with the old shell, so
+ *  the command and its button threw ReferenceError on every use. */
+COMMANDS.perturb = () => {
+  const sb = getObj("SBOX-01");
+  if (!sb) return say("no S-box to perturb");
+  const n = 1 << safeInt(sb.definition.bits, 2, LIMITS.maxSboxBits, 8);
+  const x = Math.floor(Math.random() * n), y = Math.floor(Math.random() * n);
+  COMMANDS.set(x.toString(16), y.toString(16));
+};
 COMMANDS.aes = (x) => {
   const o = getObj("AESDER-01"); if (!o) return say("no AES derivation object");
   const v = parseInt(x, 16); if (!(v >= 0 && v <= 255)) return say("aes <00-ff>");
@@ -3023,7 +3153,66 @@ const GUIDE_STEPS = [
   }
 ];
 
-function showWelcome(show=true){ document.getElementById("welcomeOverlay").hidden=!show; }
+const WELCOME_KEY = "glassbox.welcomeSeen";
+/** Remember dismissal so the welcome is a first-run greeting rather than a
+ *  modal you have to clear every single time you open the file. Wrapped
+ *  because localStorage throws in some file:// and private-mode contexts. */
+/* Key-parameterised so the self-tests can exercise the logic against a
+   throwaway key. A suite that writes to the user's real preferences is the
+   same fault that made K28 wipe this flag on every boot. */
+function welcomeSeen(key = WELCOME_KEY){
+  try { return localStorage.getItem(key) === "1"; } catch (_){ return false; }
+}
+function markWelcomeSeen(key = WELCOME_KEY){
+  try { localStorage.setItem(key, "1"); return true; } catch (_){ return false; }
+}
+function clearWelcomeSeen(key = WELCOME_KEY){
+  try { localStorage.removeItem(key); return true; } catch (_){ return false; }
+}
+/**
+ * The "seen" flag is tied to the genuine first-run prompt, flagged by
+ * data-first-run, rather than to closing any overlay. closeTopOverlay() used
+ * to mark unconditionally, so anything that closed the welcome - including the
+ * self-tests - silently wrote the user's real preference.
+ */
+function showWelcome(show = true, firstRun = false){
+  const ov = document.getElementById("welcomeOverlay");
+  ov.hidden = !show;
+  if (show && firstRun) ov.dataset.firstRun = "1";
+  if (!show) consumeFirstRun(ov);
+}
+function consumeFirstRun(ov){
+  if (ov && ov.dataset.firstRun){ delete ov.dataset.firstRun; markWelcomeSeen(); }
+}
+
+/**
+ * Modal dismissal. The close button was the only way out of an overlay: Escape
+ * did nothing and the backdrop swallowed the click. If a close button is ever
+ * misplaced or offscreen the user is trapped, and the overlay keeps
+ * intercepting every pointer event on the canvas behind it.
+ */
+function anyOpenOverlay(){
+  return [...document.querySelectorAll(".gb-overlay")].find(o => !o.hidden) || null;
+}
+function closeTopOverlay(){
+  const o = anyOpenOverlay();
+  if (!o) return false;
+  o.hidden = true;
+  consumeFirstRun(o);          // only marks if this was the real first-run prompt
+  requestDraw();
+  return true;
+}
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape" && anyOpenOverlay()){
+    e.preventDefault(); e.stopPropagation();
+    closeTopOverlay();
+  }
+}, true);
+for (const ov of document.querySelectorAll(".gb-overlay")){
+  ov.addEventListener("pointerdown", e => {
+    if (e.target === ov) closeTopOverlay();      // backdrop only, never the panel
+  });
+}
 function showGlossary(show=true){
   document.getElementById("glossaryOverlay").hidden=!show;
   if(show){ document.getElementById("glossarySearch").value=""; paintGlossary(""); setTimeout(()=>document.getElementById("glossarySearch").focus(),0); }
@@ -3499,14 +3688,31 @@ function runSelfTests(){
     return new Set(t8).size === 256 || "not a bijection";
   });
   t("K3 AES metrics match the literature (4 / 112 / 7)", () => {
-    const d = COMPUTED.get("DDT-01"), l = COMPUTED.get("LAT-01"), a = COMPUTED.get("ANF-01");
-    if (!d || !l || !a) return "objects missing";
-    if (COMPUTED.get("SBOX-01").bits !== 8) return "not an 8-bit document";
-    if (d.uniformity !== 4) return `uniformity ${d.uniformity}`;
-    if (l.nonlinearity !== 112) return `nonlinearity ${l.nonlinearity}`;
-    if (l.maxAbs !== 16) return `max|LAT| ${l.maxAbs}`;
-    if (a.degree !== 7) return `degree ${a.degree}`;
-    return true;
+    // Computed from a canonical fixture rather than the live document: a user
+    // who has edited their S-box and then presses Self-test must not be told
+    // the kernel is broken. Document-specific checks live in AC8/AC9 instead.
+    const table = aesSbox().table, N = 256;
+    const ddt = new Uint16Array(N * N);
+    for (let dx = 0; dx < N; dx++)
+      for (let x = 0; x < N; x++) ddt[dx * N + (table[x] ^ table[x ^ dx])]++;
+    let u = 0; for (let i = N; i < ddt.length; i++) if (ddt[i] > u) u = ddt[i];
+    if (u !== 4) return `differential uniformity ${u}`;
+
+    const buf = new Int32Array(N); let maxAbs = 0;
+    for (let b = 1; b < N; b++){
+      for (let x = 0; x < N; x++) buf[x] = parity(table[x] & b) ? -1 : 1;
+      fwht(buf);
+      for (let a = 0; a < N; a++){ const v = Math.abs(buf[a] >> 1); if (v > maxAbs) maxAbs = v; }
+    }
+    if (maxAbs !== 16) return `max|LAT| ${maxAbs}`;
+    if (128 - maxAbs !== 112) return `nonlinearity ${128 - maxAbs}`;
+
+    const coeff = new Uint16Array(N);
+    for (let x = 0; x < N; x++) coeff[x] = table[x];
+    moebius(coeff);
+    let deg = 0;
+    for (let m = 0; m < N; m++) if (coeff[m]) deg = Math.max(deg, popcount(m));
+    return deg === 7 || `algebraic degree ${deg}`;
   });
   t("K4 FWHT LAT equals the naive definition (random cells)", () => {
     const sb = COMPUTED.get("SBOX-01"), l = COMPUTED.get("LAT-01"), N = sb.n;
@@ -3638,19 +3844,32 @@ function runSelfTests(){
     return true;
   });
   t("K10 field microscope exposes the exact AES multiplication trace", () => {
-    const d = COMPUTED.get("GFMUL-01");
-    if (!d) return "GFMUL-01 missing";
-    if (d.a !== 0x57 || d.b !== 0x83 || d.result !== 0xC1) return `got ${U.hex(d.a,2)}×${U.hex(d.b,2)}=${U.hex(d.result,2)}`;
-    if (!d.steps.length || !d.steps.some(st => st.reduced)) return "reduction trace missing";
-    if (d.resultRepr.polynomial !== "x^7 + x^6 + 1") return `result polynomial ${d.resultRepr.polynomial}`;
-    return true;
+    // Kernel-level, so the check holds even after the user runs `mul ff ff`.
+    const F = makeField(8, 0x11B);
+    const tr = F.mulTrace(0x57, 0x83);
+    if (tr.result !== 0xC1) return `0x57 x 0x83 = 0x${tr.result.toString(16)}, expected 0xC1`;
+    if (F.mul(0x57, 0x83) !== tr.result) return "trace disagrees with mul";
+    const red = tr.steps.filter(st => st.reduced);
+    if (!red.length) return "no reduction recorded";
+    for (const st of red){
+      if (!(st.raw & 0x100)) return `step ${st.k} marked reduced without an x^8 term`;
+      if ((st.raw ^ 0x11B) !== st.shifted) return `step ${st.k}: raw ^ modulus != shifted`;
+    }
+    const r = fieldRepresentation(tr.result, 8);
+    return r.polynomial === "x^7 + x^6 + 1" || `result polynomial ${r.polynomial}`;
   });
-  t("K11 AES derivation exposes 53 -> CA -> ED and matches SBOX-01", () => {
+  t("K11 AES derivation exposes 53 -> CA -> ED", () => {
+    const F = makeField(8, 0x11B);
+    if (F.inv(0x53) !== 0xCA) return `inverse of 0x53 is 0x${F.inv(0x53).toString(16)}`;
+    if (aesSbox().table[0x53] !== 0xED) return "S(0x53) != 0xED in the canonical construction";
     const d = COMPUTED.get("AESDER-01");
-    if (!d) return "AESDER-01 missing";
-    if (d.input !== 0x53 || d.inverse !== 0xCA || d.output !== 0xED) return `got ${U.hex(d.input,2)} -> ${U.hex(d.inverse,2)} -> ${U.hex(d.output,2)}`;
-    if (!d.matchesSource) return `derivation does not match source byte ${U.hex(d.sourceValue,2)}`;
-    if (d.stages.length !== 8) return `expected 8 derivation stages, got ${d.stages.length}`;
+    if (!d) return "derivation object missing";
+    if (!Array.isArray(d.stages) || d.stages.length < 8) return `only ${(d.stages||[]).length} stages`;
+    // The live object tracks whatever byte the user is inspecting, so only assert
+    // agreement with the source, never a fixed byte.
+    const sb = COMPUTED.get("SBOX-01");
+    if (sb && d.input != null && sb.table[d.input] !== d.output && d.matchesSource !== false)
+      return `derivation claims a match it does not have for 0x${d.input.toString(16)}`;
     return true;
   });
 
@@ -3785,6 +4004,298 @@ function runSelfTests(){
     }
   });
 
+  t("K34 welcome overlay is first-run only and reopenable", () => {
+    const ov = document.getElementById("welcomeOverlay");
+    if (!ov) return "no welcome overlay";
+    // Every overlay must default to closed in the markup. welcomeOverlay had no
+    // hidden attribute, so it painted over the canvas from parse and the
+    // first-run guard could only decline to open something already open.
+    for (const o of document.querySelectorAll(".gb-overlay"))
+      if (!o.dataset.mayStartOpen && !/hidden/.test(o.outerHTML.slice(0, o.outerHTML.indexOf(">"))))
+        return `${o.id} is not hidden by default in the markup`;
+    const wasHidden = ov.hidden;
+    // Storage logic is checked against a scratch key so the user's real
+    // first-run flag is never read, written or cleared by running the tests.
+    const K = "glassbox.__selftest";
+    if (!markWelcomeSeen(K)) return true;                 // storage unavailable: skip
+    try {
+      if (!welcomeSeen(K)) return "mark did not persist";
+      clearWelcomeSeen(K);
+      if (welcomeSeen(K)) return "clear did not take effect";
+      // DOM behaviour, without touching the real flag
+      ov.hidden = false;
+      if (!closeTopOverlay()) return "closeTopOverlay found nothing to close";
+      if (!ov.hidden) return "overlay did not close";
+      ov.hidden = false;
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+      if (!ov.hidden) return "Escape did not close the welcome";
+      return true;
+    } finally {
+      clearWelcomeSeen(K);
+      ov.hidden = wasHidden;
+    }
+  });
+
+  t("K35 LAT and Walsh link to influence exactly where the maths allows", () => {
+    const lat = COMPUTED.get("LAT-01"), sb = COMPUTED.get("SBOX-01"), inf = COMPUTED.get("INF-01");
+    if (!lat || !sb || !inf) return "objects missing";
+    const B = sb.bits, N = sb.n;
+
+    // A single-bit output mask b = e_j is output bit j, so the cell links to
+    // influence column j, and only to column j.
+    for (let j = 0; j < B; j++){
+      const b = 1 << j;
+      for (const a of [0x01, 0x35, 1 << (B - 1)]){
+        const A = resolveFact({ kind: "lat-cell", eid: "LAT-01", row: a, col: b });
+        let cells = 0;
+        for (let ii = 0; ii < B; ii++) for (let jj = 0; jj < B; jj++){
+          const t = A.tier({ t: "bitPair", i: ii, j: jj });
+          if (!t) continue;
+          cells++;
+          if (jj !== j) return `LAT[${U.hex(a,2)}][${U.hex(b,2)}] lit influence column ${jj}, expected ${j}`;
+          const wantContrib = !!(a >> ii & 1);
+          if (wantContrib && t !== "contributing") return `i${ii} should be contributing`;
+          if (!wantContrib && t === "contributing") return `i${ii} should not be contributing`;
+        }
+        if (cells !== B) return `expected ${B} cells in one column, got ${cells}`;
+      }
+    }
+    // A multi-bit mask is a parity component, not an output bit: claim nothing.
+    for (const [a, b] of [[0x01, 0x48], [0x03, 0x05], [0xFF, 0xFF]]){
+      if (!(b & (b - 1))) continue;
+      const A = resolveFact({ kind: "lat-cell", eid: "LAT-01", row: a, col: b });
+      for (let ii = 0; ii < B; ii++) for (let jj = 0; jj < B; jj++)
+        if (A.tier({ t: "bitPair", i: ii, j: jj }))
+          return `multi-bit mask 0x${U.hex(b,2)} claimed influence cell i${ii}/o${jj}`;
+    }
+    return true;
+  });
+
+  t("K36 the LAT-to-influence identity actually holds", () => {
+    // INF[i][j] = ( N - (1/N) * SUM_a (2*LAT[a][e_j])^2 * (-1)^(a_i) ) / 2
+    // If this ever fails the link above is decoration rather than causation.
+    const lat = COMPUTED.get("LAT-01"), sb = COMPUTED.get("SBOX-01"), inf = COMPUTED.get("INF-01");
+    if (!lat || !sb || !inf) return "objects missing";
+    const N = sb.n, B = sb.bits;
+    for (let j = 0; j < B; j++){
+      const b = 1 << j;
+      for (let i = 0; i < B; i++){
+        let acc = 0;
+        for (let a = 0; a < N; a++){ const W = 2 * lat.m[a * N + b]; acc += W * W * ((a >> i & 1) ? -1 : 1); }
+        const predicted = (N - acc / N) / 2;
+        if (predicted !== inf.m[i * B + j])
+          return `i${i}/o${j}: identity gives ${predicted}, influence says ${inf.m[i * B + j]}`;
+      }
+    }
+    return true;
+  });
+
+  t("K37 an ANF monomial lights only cells with real dependence", () => {
+    const anf = COMPUTED.get("ANF-01"), inf = COMPUTED.get("INF-01"), sb = COMPUTED.get("SBOX-01");
+    if (!anf || !inf) return "objects missing";
+    const B = sb.bits;
+    let checked = 0;
+    for (let m = 1; m < anf.n; m++){
+      const c = anf.coeff[m]; if (!c) continue;
+      const A = resolveFact({ kind: "anf-monomial", eid: "ANF-01", index: m });
+      for (let i = 0; i < B; i++) for (let j = 0; j < B; j++){
+        const lit = !!A.tier({ t: "bitPair", i, j });
+        const want = !!((m >> i & 1) && (c >> j & 1));
+        if (lit !== want) return `monomial ${U.hex(m,2)}: cell i${i}/o${j} lit=${lit} expected=${want}`;
+        // a monomial containing x_i in bit j's ANF means bit j really depends on bit i
+        if (lit && inf.m[i * B + j] === 0) return `monomial ${U.hex(m,2)} lights i${i}/o${j} but influence is 0`;
+      }
+      checked++;
+      if (checked > 60) break;
+    }
+    return checked > 0 || "no monomials to check";
+  });
+
+  t("K38 no resolver exceeds the per-x atom guard", () => {
+    const sb = COMPUTED.get("SBOX-01"); if (!sb) return "no S-box";
+    const probes = [
+      { kind: "ddt-cell", eid: "DDT-01", row: 1, col: 0x1f },
+      { kind: "lat-cell", eid: "LAT-01", row: 1, col: 1 },
+      { kind: "influence-cell", eid: "INF-01", row: 0, col: 0 },
+      { kind: "anf-monomial", eid: "ANF-01", index: 3 },
+      { kind: "walsh-coefficient", eid: "WALSH-01", index: 1 }
+    ];
+    for (const f of probes){
+      const A = resolveFact(f); if (!A) continue;
+      const n = A.ofType("in").length;
+      if (n > ATOM_GUARD.perX) return `${f.kind} emitted ${n} in-atoms, guard is ${ATOM_GUARD.perX}`;
+    }
+    return true;
+  });
+
+  t("K33 rare matrix values get more contrast than common ones", () => {
+    // The DDT palette must encode rarity, not rank: AES is ~50% zeros and ~49%
+    // twos, so ranking wasted the contrast budget on the uninformative bulk.
+    const d = COMPUTED.get("DDT-01");
+    if (!d || !d.histogram) return "no histogram";
+    const total = d.n * d.n;
+    const lum = c => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+    const L = v => lum(COLOUR.categorical(v, d.distinct, d.histogram, total));
+    const nz = d.distinct.filter(v => v > 0).sort((a, b) => (d.histogram.get(b) || 0) - (d.histogram.get(a) || 0));
+    if (nz.length < 2) return true;                       // nothing to separate
+    const common = nz[0], rarest = nz[nz.length - 1];
+    if (L(rarest) <= L(common)) return `rarest value ${rarest} is not brighter than common ${common}`;
+    // and the bulk must not out-separate the outlier
+    if (nz.length >= 3){
+      const bulkGap = Math.abs(L(nz[0]) - L(nz[1]));
+      const rareGap = Math.abs(L(rarest) - L(nz[0]));
+      if (bulkGap > rareGap) return `bulk separation ${bulkGap.toFixed(1)} exceeds outlier separation ${rareGap.toFixed(1)}`;
+    }
+    return true;
+  });
+
+  t("K32 no ribbon button is covered in any ribbon state", () => {
+    // Regression: icon-only mode kept .rstack vertical, overflowing the panel
+    // row upward so its top button sat under the tab strip.
+    const keep = ribbonState, keepTab = activeRibbonTab;
+    // A modal is supposed to block the ribbon, so lift any open overlay for the
+    // duration and put it back afterwards - otherwise this reports the welcome
+    // dialog as a layout fault every time it runs at boot.
+    const wasOpen = [...document.querySelectorAll(".gb-overlay")].filter(o => !o.hidden);
+    wasOpen.forEach(o => { o.hidden = true; });
+    try {
+      for (const st of ["full", "buttons", "tabs"]){
+        setRibbonState(st);
+        for (const tb of [...document.querySelectorAll(".rtab")].map(b => b.dataset.tab)){
+          activeRibbonTab = tb; paintRibbon();
+          for (const btn of document.querySelectorAll("#ribbon button")){
+            const r = btn.getBoundingClientRect();
+            if (r.width < 2 || r.height < 2) continue;
+            const top = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+            if (top && !btn.contains(top) && top !== btn)
+              return `${st}/${tb}: ${btn.id || btn.textContent.trim()} covered by ${top.tagName}.${(top.className||"").toString().split(" ")[0]}`;
+          }
+        }
+      }
+      return true;
+    } finally {
+      activeRibbonTab = keepTab; setRibbonState(keep);
+      wasOpen.forEach(o => { o.hidden = false; });
+    }
+  });
+
+  t("K31 top bar action buttons stay reachable at any width", () => {
+    // Regression: #topbar was nowrap at a fixed width inside an overflow-x:hidden
+    // body, so on a narrow viewport Save/Undo/Redo were clipped away entirely.
+    const bar = document.getElementById("topbar");
+    if (!bar) return "no top bar";
+    const actions = [...bar.querySelectorAll("button")];
+    if (!actions.length) return "no action buttons";
+    const scrolls = getComputedStyle(bar).overflowX;
+    const barRect = bar.getBoundingClientRect();
+    const clipped = actions.filter(b => {
+      const r = b.getBoundingClientRect();
+      // reachable if inside the bar, or the bar itself can scroll to it
+      return r.right > barRect.right + 1 && !(scrolls === "auto" || scrolls === "scroll");
+    }).map(b => b.id || b.textContent.trim());
+    return clipped.length === 0 || `unreachable at ${Math.round(innerWidth)}px: ${clipped.join(", ")}`;
+  });
+
+  t("K30 every modal overlay can be dismissed three ways", () => {
+    const ovs = [...document.querySelectorAll(".gb-overlay")];
+    if (!ovs.length) return "no overlays found";
+    const wasOpen = ovs.filter(o => !o.hidden).map(o => o.id);
+    try {
+      for (const ov of ovs){
+        // 1. its own close button
+        const btn = ov.querySelector("button[id$='Close'], button[id*='lose']");
+        ov.hidden = false;
+        if (btn){ btn.click(); if (!ov.hidden) return `${ov.id}: close button did not dismiss`; }
+        // 2. Escape
+        ov.hidden = false;
+        document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+        if (!ov.hidden) return `${ov.id}: Escape did not dismiss`;
+        // 3. backdrop
+        ov.hidden = false;
+        ov.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+        if (!ov.hidden) return `${ov.id}: backdrop click did not dismiss`;
+        // and a click on the panel itself must NOT dismiss
+        const panel = ov.firstElementChild;
+        if (panel){
+          ov.hidden = false;
+          panel.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+          if (ov.hidden) return `${ov.id}: clicking the panel dismissed it`;
+          ov.hidden = true;
+        }
+      }
+      return true;
+    } finally {
+      ovs.forEach(o => { o.hidden = !wasOpen.includes(o.id); });
+    }
+  });
+
+  t("K27 camera survives undo and stays bound to the document", () => {
+    // Regression: `const V = S.doc.view` was orphaned by restore()'s S.doc
+    // assignment, so the live camera and the saved camera silently diverged.
+    const keep = { x: V.x, y: V.y, z: V.z };
+    try {
+      V.z = 2.75; V.x = 123.5; V.y = -44.25;
+      if (S.doc.view.z !== 2.75) return "writing V does not reach S.doc.view";
+      const sb = getObj("SBOX-01"); materialise(sb);
+      const orig = sb.definition.table[9];
+      snapshot("camera-probe");
+      sb.definition.table[9] = (orig + 1) & 0xFF;
+      markDirty(sb.eid); recomputeAll();
+      undo();
+      if (S.doc.view.z !== 2.75) return `undo clobbered the camera (z=${S.doc.view.z})`;
+      if (V.z !== 2.75) return "V lost track of the document after restore";
+      if (V !== V) return "unreachable";
+      const saved = JSON.parse(serialise());
+      if (saved.doc.view.z !== 2.75) return `saved camera is ${saved.doc.view.z}, expected 2.75`;
+      return true;
+    } finally {
+      V.x = keep.x; V.y = keep.y; V.z = keep.z;
+      markDirty("SBOX-01"); recomputeAll();
+    }
+  });
+
+  t("K28 every registered command runs without throwing", () => {
+    // Regression: COMMANDS.perturb called a helper deleted with the old shell.
+    const probes = {
+      help: [], fit: [], clear: [], undo: [], redo: [], perturb: [],
+      aes: ["7f"], mul: ["57", "83"], walsh: ["3"], set: ["3", "a"],
+      // listed for coverage, not executed here: save opens a download, test
+      // recurses into this suite, and welcome mutates persistent storage
+      // (running it at boot wiped the first-run flag every load). K34 covers it.
+      save: null, test: null, welcome: null
+    };
+    const missing = Object.keys(COMMANDS).filter(k => !(k in probes));
+    if (missing.length) return `unprobed command(s): ${missing.join(", ")}`;
+    // These commands genuinely mutate the document, so snapshot and roll back;
+    // otherwise a later pass sees a perturbed S-box and reports false failures.
+    const saved = JSON.stringify(S.doc);
+    try {
+      for (const [name, args] of Object.entries(probes)){
+        if (args === null) continue;               // save downloads, test recurses
+        const fn = COMMANDS[name];
+        if (typeof fn !== "function") return `${name} is not callable`;
+        try { fn(...args); } catch (e){ return `${name} threw: ${e.message}`; }
+      }
+      return true;
+    } finally {
+      restore(saved);
+      S.undo.length = 0; S.redo.length = 0;
+      snapshot("open");
+    }
+  });
+
+  t("K29 zoom extents brings every object inside the canvas", () => {
+    zoomExtents();
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const out = [];
+    for (const o of S.doc.objects.concat(S.doc.annotations)){
+      const x = (o.visual.x - V.x) * V.z * dpr, y = (o.visual.y - V.y) * V.z * dpr;
+      const w = o.visual.w * V.z * dpr, h = o.visual.h * V.z * dpr;
+      if (x < -2 || y < -30 || x + w > cv.width + 2 || y + h > cv.height + 2) out.push(o.eid);
+    }
+    return out.length === 0 || `outside the canvas: ${out.join(", ")}`;
+  });
+
   t("raster cache invalidates on definition change", () => {
     const k = rasterKey(getObj("DDT-01"), "categorical|undefined");
     CACHE.set(k, "sentinel"); markDirty("SBOX-01"); recomputeAll();
@@ -3913,7 +4424,7 @@ function boot(){
   const d = COMPUTED.get(ddt.eid), l = COMPUTED.get(lat.eid), a = COMPUTED.get(anf.eid);
   say(`AES S-box: uniformity ${d.uniformity}, nonlinearity ${l.nonlinearity}, degree ${a.degree} \u2014 computed in ${S.computation.lastMs.toFixed(0)}ms`);
   runSelfTests();
-  setTimeout(()=>showWelcome(true),40);
+  setTimeout(()=>{ if (!welcomeSeen()) showWelcome(true, true); }, 40);
 }
 boot();
 //#endregion
