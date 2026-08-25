@@ -613,7 +613,28 @@ const S = {
 
 /* I2: derived state, never serialised, never in history. */
 const COMPUTED = new Map();   // eid -> derived results (typed arrays etc)
+/**
+ * Derived render artefacts. Bounded: a 256x256 raster is 256 KB, and the key
+ * includes the colour mode and threshold, so a threshold slider used to mint a
+ * fresh raster per tick and never release it - 40 nudges held ~10 MB.
+ * Map preserves insertion order, so evicting the oldest key is a real LRU
+ * once cacheTouch() re-inserts on hit.
+ */
 const CACHE    = new Map();   // cacheKey -> rasters / renderer scratch
+const CACHE_MAX = 24;         // ~6 MB worst case at 256x256 RGBA
+
+function cacheGet(key){
+  if (!CACHE.has(key)) return undefined;
+  const v = CACHE.get(key);
+  CACHE.delete(key); CACHE.set(key, v);      // move to most-recent
+  return v;
+}
+function cacheSet(key, value){
+  if (CACHE.has(key)) CACHE.delete(key);
+  CACHE.set(key, value);
+  while (CACHE.size > CACHE_MAX) CACHE.delete(CACHE.keys().next().value);
+  return value;
+}
 //#endregion
 
 //#region 04 ENTITY / DEFINITION MODEL
@@ -1914,7 +1935,7 @@ RENDER["view.matrix"] = {
     const thr  = o.definition.threshold;
 
     const key = rasterKey(o, mode + "|" + thr);
-    let ras = CACHE.get(key);
+    let ras = cacheGet(key);
     if (!ras){
       const max = data.distinct[data.distinct.length - 1];
       ras = buildRaster(n, (r, col) => {
@@ -1924,7 +1945,7 @@ RENDER["view.matrix"] = {
              : mode === "categorical" ? COLOUR.categorical(v, data.distinct)
              :                          COLOUR.ramp(v, max);
       });
-      CACHE.set(key, ras);
+      cacheSet(key, ras);
     }
 
     c.save();
@@ -3743,6 +3764,27 @@ function runSelfTests(){
   });
   t("topological order places sources before dependents", () =>
     topoOrder(["DDT-01", "SBOX-01", "INF-01"]).indexOf("SBOX-01") === 0 || "wrong order");
+  t("K26 raster cache is bounded and evicts least-recently-used", () => {
+    const o = getObj("DDT-01"), data = COMPUTED.get("DDT-01");
+    const env = { atoms: null, hasSemantic: false, zoom: 1, tier: () => null };
+    const keepThr = o.definition.threshold;
+    const probe = document.createElement("canvas").getContext("2d");
+    try {
+      for (let thr = 0; thr < CACHE_MAX * 3; thr++){
+        o.definition.threshold = thr;
+        RENDER["view.matrix"].draw(probe, o, data, env);
+      }
+      if (CACHE.size > CACHE_MAX) return `cache grew to ${CACHE.size}, cap is ${CACHE_MAX}`;
+      // the most recent key must still be resident, the first must not
+      const keys = [...CACHE.keys()];
+      if (keys.some(k => k.endsWith("|0"))) return "oldest raster was not evicted";
+      return true;
+    } finally {
+      if (keepThr === undefined) delete o.definition.threshold; else o.definition.threshold = keepThr;
+      markDirty("SBOX-01"); recomputeAll();
+    }
+  });
+
   t("raster cache invalidates on definition change", () => {
     const k = rasterKey(getObj("DDT-01"), "categorical|undefined");
     CACHE.set(k, "sentinel"); markDirty("SBOX-01"); recomputeAll();
