@@ -1,0 +1,3880 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'none'; img-src 'self' data: blob:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'none'; font-src 'self';">
+<title>Glassbox 0.0</title>
+<style>
+/* ==========================================================================
+   GLASSBOX SHELL STYLES
+   Cool glass ground, single warm signal hue carrying the highlight tier ladder.
+   Tiers must read as intensity of one hue, never as different categories.
+   ========================================================================== */
+:root{
+  --void:#090d12;
+  --ground:#0e131a;
+  --panel:#131a23;
+  --panel-2:#182029;
+  --line:#212c38;
+  --line-2:#2d3a49;
+  --text:#c8d3de;
+  --text-2:#8698a9;
+  --dim:#556676;
+
+  /* highlight tier ladder - one hue, three intensities */
+  --tier-primary:#ffd166;
+  --tier-contributing:#e0912c;
+  --tier-context:rgba(255,193,71,.16);
+  --tier-context-line:rgba(255,193,71,.42);
+
+  /* object selection is a different concept to semantic highlight */
+  --select:#3fbdd6;
+  --bad:#e2626b;
+  --ok:#63c08a;
+
+  --ui:"Segoe UI Variable","Segoe UI",Inter,Arial,sans-serif;
+  --mono:"Cascadia Mono",Consolas,"Courier New",monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  background:var(--void);color:var(--text);
+  font:12px/1.45 var(--ui);
+  overflow:hidden;
+  -webkit-font-smoothing:antialiased;
+}
+#app{display:grid;grid-template-rows:auto 1fr auto;height:100%}
+
+/* ---------- top bar ---------- */
+#topbar{
+  display:flex;align-items:center;gap:14px;
+  padding:0 12px;height:38px;
+  background:var(--panel);border-bottom:1px solid var(--line);
+}
+#brand{font-family:var(--mono);font-size:13px;letter-spacing:.12em;color:var(--text)}
+#brand b{font-weight:600}
+#brand span{color:var(--dim)}
+#thesis{font-size:11px;color:var(--dim);letter-spacing:.02em}
+.spacer{flex:1}
+button{
+  font:11px/1 var(--ui);color:var(--text-2);
+  background:var(--panel-2);border:1px solid var(--line-2);
+  padding:6px 9px;border-radius:3px;cursor:pointer;letter-spacing:0;
+}
+button:hover{color:var(--text);border-color:var(--dim)}
+button:focus-visible{outline:2px solid var(--select);outline-offset:1px}
+button:active{background:var(--line)}
+
+/* ---------- main ---------- */
+#main{display:grid;grid-template-columns:1fr 300px;min-height:0}
+#stage{position:relative;background:var(--ground);min-width:0}
+#cv{display:block;width:100%;height:100%;cursor:crosshair}
+
+/* ---------- inspector ---------- */
+#inspector{
+  background:var(--panel);border-left:1px solid var(--line);
+  display:flex;flex-direction:column;min-height:0;
+}
+.sec{border-bottom:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+.sec>h3{
+  font:10px/1 var(--mono);letter-spacing:.16em;text-transform:uppercase;
+  color:var(--dim);padding:9px 11px;font-weight:500;
+  display:flex;justify-content:space-between;
+}
+.sec>.body{padding:0 11px 11px;overflow:auto;font-family:var(--mono);font-size:11px}
+.kv{display:grid;grid-template-columns:1fr auto;gap:2px 8px;color:var(--text-2)}
+.kv b{font-weight:400;color:var(--dim)}
+.kv i{font-style:normal;color:var(--text);text-align:right}
+
+/* ---------- signature element: atom trace ---------- */
+#trace{flex:1;min-height:0}
+#tracebody{padding:0 11px 11px;overflow:auto;flex:1}
+.atom{
+  display:grid;grid-template-columns:3px 1fr;gap:8px;
+  padding:3px 0;font-family:var(--mono);font-size:11px;
+  align-items:center;
+}
+.atom .bar{height:100%;min-height:14px;border-radius:1px}
+.atom.primary .bar{background:var(--tier-primary)}
+.atom.contributing .bar{background:var(--tier-contributing)}
+.atom.context .bar{background:var(--tier-context-line)}
+.atom .t{color:var(--text)}
+.atom .v{color:var(--dim)}
+.atom.primary .t{color:var(--tier-primary)}
+.tiercount{display:flex;gap:10px;font-family:var(--mono);font-size:10px;color:var(--dim)}
+.tiercount i{font-style:normal}
+.tiercount .p{color:var(--tier-primary)}
+.tiercount .c{color:var(--tier-contributing)}
+.empty{color:var(--dim);font-family:var(--mono);font-size:11px;padding:2px 0 8px;line-height:1.6}
+
+/* ---------- command + status ---------- */
+#cmdrow{display:flex;align-items:center;gap:0;border-top:1px solid var(--line);background:var(--panel)}
+#cmdprompt{font-family:var(--mono);color:var(--tier-contributing);padding:0 8px;font-size:12px}
+#cmd{
+  flex:1;background:transparent;border:0;color:var(--text);
+  font:12px/1 var(--mono);padding:9px 0;outline:none;
+}
+#cmd::placeholder{color:var(--dim)}
+#status{
+  display:flex;gap:16px;padding:6px 12px;
+  background:var(--panel);border-top:1px solid var(--line);
+  font-family:var(--mono);font-size:10.5px;color:var(--dim);letter-spacing:.04em;
+}
+#status i{font-style:normal;color:var(--text-2)}
+#status .warn{color:var(--tier-contributing)}
+#status .ok{color:var(--ok)}
+#status .bad{color:var(--bad)}
+#msg{color:var(--text-2)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+
+/* ==========================================================================\n   GLASSBOX INSTRUMENT UI — crypto-first precision workspace\n   ========================================================================== */
+:root{
+  --void:#0b0e13;--ground:#11161d;--panel:#20262e;--panel-2:#191f26;--panel-3:#272e37;
+  --raised:#303844;--line:#343d48;--line-2:#46515e;--text:#e4e9ef;--text-2:#a7b1bd;--dim:#6f7b89;
+  --tier-primary:#f3c969;--tier-contributing:#d99b4a;--tier-context:rgba(243,201,105,.12);
+  --tier-context-line:rgba(243,201,105,.38);--select:#63aee8;--bad:#e37b75;--ok:#5fc39a;
+  --shadow:0 10px 28px rgba(0,0,0,.28);
+}
+#app{grid-template-rows:34px 94px minmax(0,1fr) 24px 32px;background:var(--panel-2)}
+#topbar{height:34px;padding:0 7px;gap:0;background:var(--panel-2);border-bottom:1px solid #2d343d;box-shadow:inset 0 1px rgba(255,255,255,.015)}
+#brand{height:100%;display:flex;align-items:center;gap:7px;padding:0 10px 0 4px;border-right:1px solid #303741;font-family:var(--ui);letter-spacing:0;font-size:11.5px;color:var(--text-2)}
+#brand b{color:var(--text);font-weight:650}#brand span{color:var(--dim);font-family:var(--mono);font-size:9.5px}
+#thesis{height:100%;display:flex;align-items:center;padding:0 10px;border-right:1px solid #303741;color:var(--dim);font-size:10.5px}
+.doc-tab{height:27px;min-width:245px;display:flex;align-items:center;gap:7px;padding:0 10px;margin-left:6px;align-self:flex-end;background:var(--panel-3);border:1px solid var(--line);border-bottom-color:var(--panel-3);border-radius:5px 5px 0 0;color:var(--text-2)}
+.doc-tab::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--tier-primary)}
+.doc-tab b{font-size:10.5px;color:var(--text);font-weight:550}.doc-tab span{font:9.5px var(--mono);color:var(--dim)}
+.top-action{height:25px;min-width:28px;padding:0 7px;margin-left:2px;border:1px solid transparent;border-radius:4px;background:transparent;color:var(--text-2);font:10px var(--ui)}
+.top-action:hover{background:var(--raised);border-color:var(--line);color:var(--text)}
+#ribbon{display:flex;flex-direction:column;background:var(--panel);border-bottom:1px solid var(--line);min-height:0;box-shadow:0 3px 10px rgba(0,0,0,.08)}
+.rtabs{height:28px;display:flex;align-items:end;gap:2px;padding:3px 7px 0;background:var(--panel-2);border-bottom:1px solid #303741}
+.rtab{font:10.5px var(--ui);color:var(--text-2);padding:5px 11px 6px;border:0;border-bottom:2px solid transparent;background:transparent;border-radius:3px 3px 0 0}
+.rtab.active{color:var(--text);background:var(--panel-3);border-bottom-color:#4d91cf}.rtab:not(.active){opacity:.62}
+.rpanels{display:flex;align-items:stretch;min-height:65px;padding:3px 5px 2px;overflow:hidden}
+.rpanel{display:flex;flex-direction:column;justify-content:space-between;border-right:1px solid #303741;padding:2px 6px 0;flex:0 0 auto}
+.rpanel-body{display:flex;align-items:flex-start;gap:3px;flex:1}.rpanel-label{text-align:center;font-size:8.5px;color:var(--dim);padding:2px 1px 1px}
+.toolbig,.toolsmall{font:10px var(--ui);background:transparent;border:1px solid transparent;border-radius:4px;color:var(--text-2);cursor:pointer;display:flex;align-items:center}
+.toolbig{flex-direction:column;justify-content:flex-start;width:58px;min-height:49px;padding:5px 2px 2px;gap:3px;text-align:center;font-size:9px;line-height:1.05}
+.toolsmall{gap:5px;min-width:92px;min-height:20px;padding:2px 6px 2px 4px;text-align:left}
+.toolbig:hover,.toolsmall:hover{color:var(--text);background:var(--raised);border-color:#414a56}.toolbig:active,.toolsmall:active{background:#263c50}
+.toolglyph{width:24px;height:24px;display:grid;place-items:center;border:1px solid #46515e;border-radius:4px;font:700 12px var(--mono);color:#d6dee7;background:#1a2027}
+.toolsmall .toolglyph{width:15px;height:15px;border:0;background:transparent;font-size:10px;color:#7eb7e7}
+.rstack{display:flex;flex-direction:column;gap:1px}
+#main{grid-template-columns:minmax(0,1fr) 326px;background:var(--ground)}
+#stage{background-color:#11161d;background-image:linear-gradient(rgba(255,255,255,.022) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.022) 1px,transparent 1px),linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px);background-size:20px 20px,20px 20px,100px 100px,100px 100px;background-position:-1px -1px}
+#cv{cursor:default}
+#stage::before{content:"INTERROGATE";position:absolute;left:10px;top:8px;z-index:1;pointer-events:none;font:600 8px var(--mono);letter-spacing:.18em;color:#4e5b68}
+#inspector{background:#20252c;border-left:1px solid var(--line);box-shadow:-6px 0 18px rgba(0,0,0,.08)}
+.sec{border-bottom:1px solid #303741}.sec>h3{font:600 9px/1 var(--ui);letter-spacing:.04em;text-transform:none;color:#aeb7c2;padding:7px 9px;background:#272d34}
+.sec>.body,#tracebody{padding:7px 9px 9px}.kv{grid-template-columns:112px 1fr;gap:0;border:1px solid #303741;border-bottom:0}.kv b,.kv i{padding:4px 6px;border-bottom:1px solid #303741;min-height:23px;display:flex;align-items:center}.kv b{color:#7f8996;background:#1c2229;border-right:1px solid #303741;font-size:9.5px}.kv i{color:#dce1e8;background:#20252b;justify-content:flex-end;font-size:9.5px}
+#trace{flex:1}.tiercount{gap:7px;margin-left:auto}.atom{grid-template-columns:3px 54px 1fr;gap:6px;padding:2px 0;font-size:9.5px}.atom .bar{min-height:13px}.atom .t{font-weight:650}.atom .v{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#depview{font:9.5px/1.55 var(--mono);color:#8f9aa7!important;background:#181e25;border:1px solid #303741;padding:7px;border-radius:3px}
+#status{grid-row:5;background:#20252c;border-top:1px solid #303741;padding:4px 7px;gap:0;font:9.5px var(--ui);letter-spacing:0;height:24px}
+#status span{padding:0 8px;border-right:1px solid #303741}#status span:first-child{padding-left:2px}#status i{font-family:var(--mono);color:#cbd4df}#msg{margin-left:auto;border-right:0!important;color:#7f8996!important}
+#cmdrow{grid-row:6;border-top:1px solid #303741;background:#191e24;height:32px;padding:0 7px;gap:6px}
+#cmdprompt{font:600 10px var(--mono);color:#8cc5f3;padding:0}#cmd{height:23px;background:#151a20;border:1px solid #39414a;border-radius:4px;padding:3px 7px;font:10.5px var(--mono)}
+#cmd:focus{border-color:#4d91cf;box-shadow:inset 0 0 0 1px #4d91cf}
+.analysis-badge{display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 7px;border:1px solid #3b4652;border-radius:10px;background:#1a2027;color:#8996a4;font:9px var(--mono)}
+.analysis-badge::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--ok)}
+@media(max-width:900px){#main{grid-template-columns:1fr}#inspector{display:none}.rpanel:nth-last-child(-n+2){display:none}.doc-tab{min-width:150px}}
+
+
+/* ==========================================================================\n   GLASSBOX PROFESSIONAL SHELL 0.0.4\n   Restores the full precision-workspace behaviour harvested from B2DB.\n   ========================================================================== */
+#app{
+  --ribbon-h:101px;--optbar-h:31px;--status-h:24px;--cmd-h:32px;
+  grid-template-rows:34px var(--ribbon-h) var(--optbar-h) minmax(0,1fr) var(--status-h) var(--cmd-h);
+}
+#ribbon{min-height:0;height:auto}
+.rtabs-row{display:flex;align-items:stretch;background:var(--panel-2);border-bottom:1px solid #303741;min-height:29px;padding-right:5px;flex:0 0 auto}
+.rtabs{display:flex;align-items:end;gap:2px;padding:3px 7px 0;min-height:29px;flex:1 1 auto;min-width:0;overflow-x:auto;scrollbar-width:none;background:transparent;border:0}
+.rtabs::-webkit-scrollbar{display:none}
+.rtab{flex:0 0 auto;opacity:1!important;cursor:pointer}
+.rtab[aria-selected="true"]{color:var(--text);background:var(--panel-3);border-bottom-color:#4d91cf}
+.rtab[aria-selected="false"]{color:var(--text-2);background:transparent;border-bottom-color:transparent}
+.rtab:hover{color:var(--text);background:var(--raised)}
+.rstate{display:flex;align-items:center;gap:2px;flex:0 0 auto;padding-left:6px;margin-left:4px;border-left:1px solid #303741}
+.rstate button{height:20px;padding:0 7px;display:flex;align-items:center;gap:5px;background:transparent;border:1px solid transparent;border-radius:3px;color:var(--dim);font:10px var(--ui);cursor:pointer}
+.rstate button:hover{background:var(--raised);border-color:var(--line);color:var(--text)}
+.rpanels{overflow-x:auto;overflow-y:hidden;min-height:68px;padding:3px 5px 2px;scrollbar-width:thin;scrollbar-color:#4a5360 transparent}
+.rpanel{display:flex;flex-direction:column;justify-content:space-between;border-right:1px solid #303741;padding:2px 6px 0;flex:0 0 auto}
+.rpanel:last-child{border-right:0}
+.rpanel-body{display:flex;align-items:flex-start;gap:2px;flex:1}.rpanel-label{text-align:center;font-size:9px;color:var(--dim);padding:2px 1px 1px}
+.rcols{display:flex;flex-direction:column;gap:0}.rrow{display:flex;gap:1px}.rstack{display:flex;flex-direction:column;gap:1px}
+.big,.small{font:inherit;background:transparent;border:1px solid transparent;border-radius:4px;color:var(--text-2);cursor:pointer;display:flex;align-items:center;transition:background .08s linear,color .08s linear,border-color .08s linear}
+.big{flex-direction:column;justify-content:flex-start;width:58px;min-height:52px;padding:4px 2px 2px;gap:2px;font-size:9.5px;line-height:1.08;text-align:center}
+.small{gap:5px;padding:2px 6px 2px 3px;font-size:10px;line-height:1.1;min-width:96px;min-height:19px;text-align:left}
+.big svg,.small svg{fill:none;stroke:currentColor;stroke-width:1.45;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}.big svg{width:24px;height:24px}.small svg{width:14px;height:14px}
+.big:hover,.small:hover{color:var(--text);background:var(--raised);border-color:#414a56}.big:focus-visible,.small:focus-visible{outline:1px solid var(--select);outline-offset:1px}
+.big[aria-pressed="true"],.small[aria-pressed="true"]{color:#dceeff;background:#263c50;border-color:#3c6788}
+#optbar{display:flex;align-items:center;gap:9px;padding:4px 9px;background:#20252c;border-bottom:1px solid var(--line);color:var(--text-2);font-size:10.5px;min-width:0;overflow-x:auto;white-space:nowrap}
+#optbar:empty{display:none}#app:has(#optbar:empty){--optbar-h:0px}
+#optbar .context-name{display:inline-flex;align-items:center;height:21px;padding:0 9px 0 6px;border-right:1px solid var(--line);color:#cfe5fa;font-weight:600}
+#optbar .context-name::before{content:"";width:3px;height:13px;border-radius:2px;background:#4d91cf;margin-right:7px}
+#optbar label{display:flex;align-items:center;gap:5px}#optbar input,#optbar select{height:22px;background:#191e24;border:1px solid var(--line);border-radius:4px;color:var(--text);padding:2px 6px;font:10px var(--mono)}
+#optbar input[type="text"]{width:260px;font-family:var(--ui)}#optbar input[type="checkbox"]{width:13px;height:13px;accent-color:#4d91cf}
+#optbar button{height:22px;padding:0 8px;font:10px var(--ui);background:var(--panel-3);border:1px solid var(--line);border-radius:4px;color:var(--text-2)}#optbar button:hover{color:var(--text);background:var(--raised)}
+#app.ribbon-buttons{--ribbon-h:66px}#app.ribbon-buttons .rpanel-label{display:none}#app.ribbon-buttons .rpanels{min-height:36px;align-items:center}#app.ribbon-buttons .big{min-height:34px;width:48px;padding-top:3px}#app.ribbon-buttons .big span{display:none}#app.ribbon-buttons .big svg{width:20px;height:20px}#app.ribbon-buttons .small{min-width:36px;width:36px;padding:3px;justify-content:center}#app.ribbon-buttons .small span{display:none}#app.ribbon-buttons .small svg{width:18px;height:18px}
+#app.ribbon-tabs{--ribbon-h:29px}#app.ribbon-tabs .rpanels{display:none}
+#app.inspector-hidden #main{grid-template-columns:minmax(0,1fr)}#app.inspector-hidden #inspector{display:none}
+#stage.no-grid{background-image:none!important}
+#inspector .sec.error-sec h3{color:#e7a19c}.compute-error{padding:7px 9px;color:#e7a19c;font:9.5px/1.5 var(--mono);background:#241b1d;border:1px solid #58363a;border-radius:3px;margin:7px 9px}
+#topbar .doc-tab{min-width:270px}.top-action svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:1.5;vertical-align:-2px;margin-right:4px}
+@media(max-width:980px){#main{grid-template-columns:minmax(0,1fr) 290px}.small{min-width:82px}.rpanel{padding-left:4px;padding-right:4px}}
+
+
+
+/* ==========================================================================
+   GLASSBOX IDENTITY + TYPOGRAPHY 0.0.7
+   B2DB-inspired workstation typography, Glassbox-specific visual identity.
+   ========================================================================== */
+body{
+  font-family:var(--ui);
+  font-size:12px;
+  letter-spacing:0;
+}
+button,input,select,textarea{font-family:var(--ui)}
+#brand{
+  height:100%;
+  display:flex;
+  align-items:center;
+  gap:7px;
+  padding:0 10px 0 5px;
+  border-right:1px solid #303741;
+  font-family:var(--ui);
+  letter-spacing:0;
+  font-size:11.5px;
+  color:var(--text-2);
+}
+#brand .brand-mark{
+  width:22px;
+  height:22px;
+  flex:0 0 22px;
+  display:grid;
+  place-items:center;
+  border-radius:5px;
+  background:linear-gradient(145deg,#1d2a35,#17202a);
+  border:1px solid #3e4b58;
+  box-shadow:inset 0 1px rgba(255,255,255,.045),0 1px 2px rgba(0,0,0,.24);
+}
+#brand .brand-mark svg{width:18px;height:18px;overflow:visible}
+#brand .glass-back{
+  fill:rgba(92,158,214,.08);
+  stroke:#6c9fc9;
+  stroke-width:1.15;
+}
+#brand .glass-front{
+  fill:rgba(111,184,230,.08);
+  stroke:#9cc7e6;
+  stroke-width:1.2;
+}
+#brand .glass-ray{
+  fill:none;
+  stroke:#7797b0;
+  stroke-width:1;
+  stroke-linecap:round;
+  opacity:.78;
+}
+#brand .glass-point{
+  fill:var(--tier-primary);
+  stroke:#ffe4a0;
+  stroke-width:.55;
+}
+#brand b{
+  color:var(--text);
+  font-weight:600;
+  letter-spacing:.01em;
+}
+#brand>span:last-child{
+  color:var(--dim);
+  font-family:var(--mono);
+  font-size:9.5px;
+}
+#thesis{
+  font-family:var(--ui);
+  font-size:10.5px;
+  letter-spacing:0;
+}
+.doc-tab b{font-family:var(--ui);font-weight:500}
+.doc-tab span{font-family:var(--mono);font-size:9.5px}
+.rtab{
+  font-family:var(--ui);
+  font-size:11px;
+  font-weight:400;
+  letter-spacing:0;
+}
+.rpanel-label{
+  font-family:var(--ui);
+  font-size:9px;
+  color:#75808c;
+}
+.big,.small{
+  font-family:var(--ui);
+  font-weight:400;
+  letter-spacing:0;
+}
+.big{font-size:9.5px}
+.small{font-size:10px}
+.sec>h3{
+  font-family:var(--ui);
+  font-weight:600;
+  font-size:9.5px;
+  letter-spacing:.01em;
+  color:#b8c1cb;
+}
+.kv b{
+  font-family:var(--ui);
+  font-size:9.5px;
+  font-weight:400;
+}
+.kv i{
+  font-family:var(--mono);
+  font-size:9.5px;
+}
+#understandBody,
+.gb-understand-title,
+.gb-understand-block,
+.trace-readable,
+.gb-welcome,
+.gb-glossary,
+.gb-coach{
+  font-family:var(--ui);
+}
+.atom,.tiercount,#depview,#status,#cmd,#cmdprompt{
+  font-family:var(--mono);
+}
+.top-action{
+  font-family:var(--ui);
+  font-size:10px;
+  letter-spacing:0;
+}
+.analysis-badge{
+  font-family:var(--mono);
+  font-size:9px;
+}
+
+/* ==========================================================================
+   GLASSBOX HUMAN GUIDANCE 0.0.5
+   Learning layer over the exact expert workspace. No crypto math lives here.
+   ========================================================================== */
+.mini-help-btn{margin-left:auto;height:18px!important;padding:0 6px!important;border:1px solid #3a4652!important;border-radius:3px!important;background:#1b2229!important;color:#8997a6!important;font:8.5px var(--ui)!important;cursor:pointer}
+.mini-help-btn:hover{color:#e3eaf2!important;border-color:#586675!important}
+#understandBody{font:10px/1.48 var(--ui)!important;color:#aeb8c3}
+.gb-understand-title{font-weight:650;color:#e3e9ef;margin-bottom:5px}
+.gb-understand-block{margin:7px 0;padding-top:7px;border-top:1px solid #303741}
+.gb-understand-block b{display:block;color:#7f8d9c;font-size:8.5px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:3px}
+.gb-understand-try{color:#d7b66c}
+.gb-inline-term{display:inline-block;padding:1px 4px;border:1px solid #394653;border-radius:3px;background:#192028;color:#b6c3cf;font:9px var(--mono);margin:1px 2px 1px 0}
+#gbTooltip{position:fixed;z-index:500;display:none;max-width:340px;padding:9px 11px;border:1px solid #465463;border-radius:5px;background:rgba(20,26,33,.98);box-shadow:0 12px 28px rgba(0,0,0,.38);color:#cbd5df;font:10px/1.45 var(--ui);pointer-events:none}
+#gbTooltip b{display:block;color:#f0f4f8;margin-bottom:3px}
+#gbTooltip .why{color:#9eabb8;margin-top:5px}
+#gbTooltip .try{color:#d6b56b;margin-top:5px}
+.gb-overlay{position:fixed;inset:0;z-index:450;display:grid;place-items:center;padding:24px;background:rgba(6,9,13,.72);backdrop-filter:blur(4px)}
+.gb-overlay[hidden]{display:none}
+.gb-welcome,.gb-glossary{width:min(680px,calc(100vw - 48px));max-height:calc(100vh - 48px);overflow:auto;border:1px solid #46515e;border-radius:8px;background:#1b222a;box-shadow:0 24px 70px rgba(0,0,0,.55);padding:24px}
+.gb-kicker{font:700 9px var(--mono);letter-spacing:.18em;color:#6f9fca;margin-bottom:7px}
+.gb-welcome h1,.gb-glossary h2{margin:0;color:#edf2f6;font:650 22px/1.2 var(--ui)}
+.gb-welcome>p{margin:10px 0 18px;color:#aab6c2;font:12px/1.55 var(--ui);max-width:580px}
+.gb-start-steps{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin:16px 0 20px}
+.gb-start-steps div{min-width:0;padding:10px;border:1px solid #34404c;border-radius:5px;background:#151b22;color:#9ba9b6;font:10px/1.35 var(--ui)}
+.gb-start-steps b{display:grid;place-items:center;width:22px;height:22px;border-radius:50%;background:#263c50;color:#9bc8ef;margin-bottom:7px;font:700 10px var(--mono)}
+.gb-welcome-actions,.gb-coach-actions{display:flex;gap:7px;flex-wrap:wrap}
+.gb-welcome-actions button,.gb-coach-actions button,.gb-glossary button{height:30px;padding:0 11px;border:1px solid #46515e;border-radius:4px;background:#242c35;color:#c3ced8;font:10px var(--ui);cursor:pointer}
+.gb-welcome-actions button:hover,.gb-coach-actions button:hover,.gb-glossary button:hover{background:#303a45;color:#eef3f7}
+.gb-primary{background:#2d5575!important;border-color:#477ba7!important;color:#eef7ff!important}
+.gb-coach{position:fixed;z-index:420;left:18px;bottom:66px;width:min(390px,calc(100vw - 36px));padding:14px;border:1px solid #4a5765;border-radius:7px;background:rgba(25,31,39,.98);box-shadow:0 14px 34px rgba(0,0,0,.45)}
+.gb-coach[hidden]{display:none}.gb-coach-top{display:flex;align-items:center;justify-content:space-between;color:#768594;font:9px var(--mono);margin-bottom:7px}
+.gb-coach-top button{border:0;background:transparent;color:#7f8d9b;font:9px var(--ui);cursor:pointer}
+.gb-coach h2{margin:0 0 6px;color:#e6edf3;font:650 14px/1.25 var(--ui)}
+.gb-coach p{margin:0 0 12px;color:#aeb9c4;font:10.5px/1.5 var(--ui)}
+.gb-guide-result{margin:0 0 10px;padding:8px 9px;border:1px solid #3b5267;border-radius:4px;background:#17232d;color:#b9cee0;font:9.5px/1.45 var(--ui)}
+.gb-guide-result b{color:#e7f1fa;font-weight:650}
+.gb-guide-result[hidden]{display:none}
+.gb-glossary-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+#glossarySearch{width:100%;height:34px;margin:16px 0 10px;padding:0 10px;background:#141a20;border:1px solid #3a4652;border-radius:5px;color:#e5ebf1;font:11px var(--ui)}
+.gb-glossary-item{padding:10px 2px;border-bottom:1px solid #2e3741}
+.gb-glossary-item b{display:block;color:#e2e8ee;font:600 11px var(--ui);margin-bottom:3px}
+.gb-glossary-item span{color:#9eabb8;font:10px/1.48 var(--ui)}
+#understand{flex:1 1 0;min-height:56px;max-height:38%}
+#understand>.body{overflow:auto;height:100%}
+.trace-readable{display:flex;flex-direction:column;gap:6px}
+.trace-readable .trace-group{padding:7px;border:1px solid #303b46;border-radius:4px;background:#181e25}
+.trace-readable .trace-group b{display:block;color:#d7e0e8;font:600 9.5px var(--ui);margin-bottom:2px}
+.trace-readable .trace-group span{color:#8f9caa;font:9.5px/1.4 var(--ui)}
+@media(max-width:700px){.gb-start-steps{grid-template-columns:1fr 1fr}.gb-welcome,.gb-glossary{padding:17px}}
+
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="topbar">
+    <div id="brand">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24">
+          <path class="glass-back" d="M5.2 4.2h9.6a2 2 0 0 1 2 2v9.6a2 2 0 0 1-2 2H5.2a2 2 0 0 1-2-2V6.2a2 2 0 0 1 2-2Z"/>
+          <path class="glass-front" d="M9.2 7.2h9.6a2 2 0 0 1 2 2v9.6a2 2 0 0 1-2 2H9.2a2 2 0 0 1-2-2V9.2a2 2 0 0 1 2-2Z"/>
+          <path class="glass-ray" d="M6.7 14.7 17.3 8.9"/>
+          <circle class="glass-point" cx="17.3" cy="8.9" r="1.55"/>
+        </svg>
+      </span>
+      <b>Glassbox</b><span>0.0.9</span>
+    </div>
+    <div id="thesis">Cryptography you can interrogate</div>
+    <div class="doc-tab"><b>AES S-box investigation</b><span>8→8 · exact live analysis</span></div>
+    <div class="spacer"></div>
+    <span class="analysis-badge">deterministic</span>
+    <button class="top-action" id="btnNew" title="New investigation"><svg viewBox="0 0 16 16"><path d="M3 2.5h7l3 3V14H3z"/><path d="M10 2.5v3h3"/></svg>New</button>
+    <button class="top-action" id="btnOpen" title="Open .glass investigation"><svg viewBox="0 0 16 16"><path d="M2 5h5l1.5 2H14l-2 6H3z"/><path d="M2 5V3h5l1 2"/></svg>Open</button>
+    <button class="top-action" id="btnSave" title="Save native .glass investigation"><svg viewBox="0 0 16 16"><path d="M2.5 2.5h10v11h-10z"/><path d="M5 2.5v4h5v-4M5 10h5"/></svg>Save</button>
+    <button class="top-action" id="btnUndo" title="Undo (Ctrl+Z)"><svg viewBox="0 0 16 16"><path d="M6 4 2.5 7.5 6 11"/><path d="M3 7.5h6a4 4 0 0 1 4 4"/></svg>Undo</button>
+    <button class="top-action" id="btnRedo" title="Redo (Ctrl+Y)"><svg viewBox="0 0 16 16"><path d="m10 4 3.5 3.5L10 11"/><path d="M13 7.5H7a4 4 0 0 0-4 4"/></svg>Redo</button>
+  </div>
+
+  <div id="ribbon">
+    <div class="rtabs-row">
+      <div class="rtabs" id="rtabs" role="tablist"></div>
+      <div class="rstate"><button id="rstate-cycle" type="button" title="Cycle ribbon display state"><svg viewBox="0 0 16 16" width="12" height="12"><path d="m4 10 4-4 4 4" fill="none" stroke="currentColor"/></svg><span id="rstate-label">Full</span></button></div>
+    </div>
+    <div class="rpanels" id="rpanels"></div>
+  </div>
+  <div id="optbar"></div>
+
+  <div id="main">
+    <div id="stage"><canvas id="cv"></canvas></div>
+    <aside id="inspector">
+      <div class="sec">
+        <h3>Inspector</h3>
+        <div class="body"><div class="kv" id="objkv"></div></div>
+      </div>
+      <div class="sec" id="understand">
+        <h3>Understand <button type="button" class="mini-help-btn" id="btnGlossary">Glossary</button></h3>
+        <div class="body" id="understandBody"></div>
+      </div>
+      <div class="sec" id="trace">
+        <h3>Semantic trace <span class="tiercount" id="tiercount"></span><button type="button" class="mini-help-btn" id="traceModeBtn">Readable</button></h3>
+        <div id="tracebody"></div>
+      </div>
+      <div class="sec">
+        <h3>Dependency structure</h3>
+        <div class="body"><div id="depview" style="white-space:pre"></div></div>
+      </div>
+    </aside>
+  </div>
+
+  <div id="status">
+    <span>dirty <i id="stDirty">0</i></span>
+    <span>recompute <i id="stMs">0.0</i>ms</span>
+    <span>atoms <i id="stAtoms">0</i></span>
+    <span>zoom <i id="stZoom">100</i>%</span>
+    <span id="msg"></span>
+  </div>
+  <div id="cmdrow"><span id="cmdprompt">Command:</span><input id="cmd" spellcheck="false" placeholder="set 3 a   ·   fit   ·   clear   ·   perturb   ·   test   ·   help"></div>
+</div>
+
+<div id="gbTooltip" role="tooltip" aria-hidden="true"></div>
+
+<div id="welcomeOverlay" class="gb-overlay">
+  <div class="gb-welcome" role="dialog" aria-modal="true" aria-labelledby="welcomeTitle">
+    <div class="gb-kicker">GLASSBOX</div>
+    <h1 id="welcomeTitle">Cryptography you can interrogate</h1>
+    <p>Glassbox shows the mathematical structures inside cryptographic components and lets you click through the relationships that produced a result.</p>
+    <div class="gb-start-steps">
+      <div><b>1</b><span>See something interesting.</span></div>
+      <div><b>2</b><span>Click it.</span></div>
+      <div><b>3</b><span>Related structures light up.</span></div>
+      <div><b>4</b><span>Use the Inspector to understand why.</span></div>
+    </div>
+    <div class="gb-welcome-actions">
+      <button type="button" class="gb-primary" id="welcomeGuide">Start guided AES investigation</button>
+      <button type="button" id="welcomeExpert">Open full workspace</button>
+      <button type="button" id="welcomeGlossary">Crypto glossary</button>
+    </div>
+  </div>
+</div>
+
+<div id="guideCoach" class="gb-coach" hidden>
+  <div class="gb-coach-top"><span id="guideProgress"></span><button type="button" id="guideClose" aria-label="Close guide">Close</button></div>
+  <h2 id="guideTitle"></h2>
+  <p id="guideBody"></p>
+  <div id="guideResult" class="gb-guide-result" hidden></div>
+  <div class="gb-coach-actions">
+    <button type="button" id="guideBack">Back</button>
+    <button type="button" class="gb-primary" id="guideNext">Next</button>
+  </div>
+</div>
+
+<div id="glossaryOverlay" class="gb-overlay" hidden>
+  <div class="gb-glossary" role="dialog" aria-modal="true" aria-labelledby="glossaryTitle">
+    <div class="gb-glossary-head"><div><div class="gb-kicker">REFERENCE</div><h2 id="glossaryTitle">Crypto glossary</h2></div><button type="button" id="glossaryClose">Close</button></div>
+    <input id="glossarySearch" type="search" placeholder="Search S-box, XOR, DDT, Walsh, finite field...">
+    <div id="glossaryList"></div>
+  </div>
+</div>
+
+<input id="glassFileIn" type="file" accept=".glass,application/json" style="display:none">
+
+<script>
+"use strict";
+/* ############################################################################
+   GLASSBOX - single-file cryptographic visual investigation workbench
+
+   SECTION NUMBERS ARE PERMANENT. Never renumber. New material gets a suffix
+   (10A, 10B, 10C...) so patches always land in a predictable place.
+
+   HARD INVARIANTS - enforced by region 23:
+     I1  Definitions serialise. Computed results NEVER serialise.
+     I2  COMPUTED and CACHE live outside S.doc and outside history.
+     I3  Renderers never compute mathematics. They match atoms only.
+     I4  Cross-view knowledge lives in the resolver, never renderer-to-renderer.
+     I5  No eval, no new Function, no network, no remote resources.
+   ############################################################################ */
+
+//#region 00 CONSTANTS / VERSION
+const APP = Object.freeze({
+  name: "Glassbox",
+  version: "0.0.9",
+  formatVersion: 1,
+  ext: ".glass",
+  mime: "application/x-glassbox+json"
+});
+//#endregion
+
+//#region 01 SECURITY / LIMITS
+const LIMITS = Object.freeze({
+  maxObjects: 512,
+  maxRelations: 4096,
+  maxSboxBits: 8,          // 8 -> 256 entries, 65536-cell matrices
+  maxMatrixDim: 256,
+  maxStringLen: 4096,
+  maxAnnotations: 1024,
+  maxFileBytes: 8 * 1024 * 1024,
+  maxHistoryBytes: 24 * 1024 * 1024,
+  maxAtomsPerSelection: 8192
+});
+
+const BANNED_KEYS = Object.freeze(["__proto__", "constructor", "prototype"]);
+
+/** Prototype-pollution-resistant deep parse. Allow-list driven, no merging. */
+function safeParse(text){
+  if (typeof text !== "string" || text.length > LIMITS.maxFileBytes) throw new Error("input too large");
+  const raw = JSON.parse(text, (k, v) => (BANNED_KEYS.includes(k) ? undefined : v));
+  return raw;
+}
+function safeStr(v, max = LIMITS.maxStringLen){
+  return typeof v === "string" ? v.slice(0, max) : "";
+}
+function safeInt(v, lo, hi, dflt = 0){
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.min(hi, Math.max(lo, Math.trunc(n))) : dflt;
+}
+//#endregion
+
+//#region 02 UTILITIES
+const U = {
+  clamp: (v, a, b) => v < a ? a : v > b ? b : v,
+  hex: (v, w = 1) => v.toString(16).toUpperCase().padStart(w, "0"),
+  bin: (v, w) => v.toString(2).padStart(w, "0"),
+  popcount(v){ let c = 0; while (v){ v &= v - 1; c++; } return c; },
+  parity(v){ return U.popcount(v) & 1; },
+  /** FNV-1a. Used for definition hashing -> cache keys. */
+  hash(str){
+    let h = 0x811c9dc5;
+    for (let i = 0; i < str.length; i++){ h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+    return (h >>> 0).toString(16);
+  },
+  now: () => performance.now()
+};
+//#endregion
+
+//#region 03 APPLICATION STATE
+/**
+ * S.doc is THE DOCUMENT. It is what serialises and what history snapshots.
+ * Everything derived lives in COMPUTED / CACHE, deliberately outside S.
+ */
+const S = {
+  doc: {
+    formatVersion: APP.formatVersion,
+    objects: [],       // definition + layout + style + provenance
+    relations: [],     // {from, to, kind}
+    layers: [],
+    styles: {},
+    annotations: [],
+    view: { x: 0, y: 0, z: 1 }
+  },
+  selection: new Set(),   // eids - object-level selection
+  semantic: null,         // AtomSet | null - semantic selection
+  computation: { dirty: new Set(), lastMs: 0, diagnostics: {} },
+  undo: [],
+  redo: [],
+  prefs: { showValues: true },
+  ui: { hover: null, msg: "" }
+};
+
+/* I2: derived state, never serialised, never in history. */
+const COMPUTED = new Map();   // eid -> derived results (typed arrays etc)
+const CACHE    = new Map();   // cacheKey -> rasters / renderer scratch
+//#endregion
+
+//#region 04 ENTITY / DEFINITION MODEL
+/**
+ * Object contract. Note the absence of a `computed` field - that is the point.
+ *   { eid, type, definition, visual, style, provenance, revision }
+ */
+const TYPES = Object.create(null);
+
+function defineType(type, spec){
+  TYPES[type] = Object.freeze(Object.assign({
+    family: "misc",
+    renderer: null,
+    factKind: null,
+    compute: null,
+    defaults: () => ({})
+  }, spec));
+}
+
+/** Per-prefix sequences. IDs are permanent and relationship-bearing, so they
+ *  must be readable: SBOX-01 / DDT-01 / INF-01, not a shared global counter. */
+const _eidSeq = Object.create(null);
+function nextEid(prefix){
+  _eidSeq[prefix] = (_eidSeq[prefix] || 0) + 1;
+  return `${prefix}-${String(_eidSeq[prefix]).padStart(2, "0")}`;
+}
+
+function makeObject(type, definition, visual){
+  const spec = TYPES[type];
+  if (!spec) throw new Error(`unknown type ${type}`);
+  if (S.doc.objects.length >= LIMITS.maxObjects) throw new Error("object limit");
+  return {
+    eid: nextEid(spec.eidPrefix || "OBJ"),
+    type,
+    definition: Object.assign(spec.defaults(), definition || {}),
+    visual: Object.assign({ x: 0, y: 0, w: 240, h: 240, renderer: spec.renderer }, visual || {}),
+    style: {},
+    provenance: { app: APP.version, algo: type, algoVersion: 1 },
+    revision: 1
+  };
+}
+function getObj(eid){ return S.doc.objects.find(o => o.eid === eid) || null; }
+
+/** Fork a constructed object into an explicit, editable definition.
+ *  "AES S-box" is a derivation; the moment you edit one entry it stops being
+ *  AES and becomes a candidate. Provenance records where it came from so the
+ *  Inspector never claims a hand-edited table is the standard. */
+function materialise(o){
+  if (!o.definition.construction || o.definition.construction === "explicit") return false;
+  const d = COMPUTED.get(o.eid);
+  if (!d || !d.table) return false;
+  o.definition.table = [...d.table];
+  o.provenance.forkedFrom = o.definition.construction;
+  o.definition.construction = "explicit";
+  return true;
+}
+function defHash(o){ return U.hash(o.type + "|" + JSON.stringify(o.definition)); }
+/** The fact kind an object's views emit. Belongs to the TYPE, never the view,
+ *  so one generic renderer can serve DDT, LAT, Walsh and anything after them. */
+function factKindOf(o){ return (TYPES[o.type] && TYPES[o.type].factKind) || "object"; }
+/** How a matrix-shaped object maps grid coordinates to atoms. Declared by the
+ *  TYPE so one renderer serves DDT, LAT and anything after them. */
+function atomMapOf(o){ return (TYPES[o.type] && TYPES[o.type].atomMap) || null; }
+//#endregion
+
+//#region 05 HISTORY
+/**
+ * Snapshots S.doc only. If a computed array ever appears in a snapshot the
+ * byte budget dies within a dozen edits - region 23 asserts against it.
+ */
+let _histBytes = 0;
+function snapshot(label){
+  const blob = JSON.stringify(S.doc);
+  S.undo.push({ label, blob, ts: Date.now() });
+  S.redo.length = 0;
+  _histBytes += blob.length;
+  while (_histBytes > LIMITS.maxHistoryBytes && S.undo.length > 1){
+    _histBytes -= S.undo.shift().blob.length;
+  }
+}
+function restore(blob){
+  const doc = safeParse(blob);
+  S.doc = doc;
+  S.selection.clear();
+  S.semantic = null;
+  COMPUTED.clear(); CACHE.clear();               // I1: always regenerate
+  S.doc.objects.forEach(o => S.computation.dirty.add(o.eid));
+  recomputeAll();
+}
+function undo(){
+  if (S.undo.length < 2) return say("nothing to undo");
+  const cur = S.undo.pop(); S.redo.push(cur);
+  restore(S.undo[S.undo.length - 1].blob);
+  say(`undo ${cur.label}`);
+}
+function redo(){
+  const nxt = S.redo.pop(); if (!nxt) return say("nothing to redo");
+  S.undo.push(nxt); restore(nxt.blob);
+  say(`redo ${nxt.label}`);
+}
+//#endregion
+
+//#region 06 DEPENDENCY GRAPH
+function registerDependency(from, to, kind = "derives-from"){
+  if (S.doc.relations.length >= LIMITS.maxRelations) throw new Error("relation limit");
+  S.doc.relations.push({ from, to, kind });
+}
+function dependentsOf(eid){ return S.doc.relations.filter(r => r.from === eid).map(r => r.to); }
+function sourcesOf(eid){ return S.doc.relations.filter(r => r.to === eid).map(r => r.from); }
+
+function dependentOfType(eid, type){
+  return dependentsOf(eid).find(id => { const o = getObj(id); return o && o.type === type; }) || null;
+}
+function sourceOfType(eid, type){
+  return sourcesOf(eid).find(id => { const o = getObj(id); return o && o.type === type; }) || null;
+}
+function addRelatedObject(A, eid, tier = "context"){
+  if (eid) A.add({ t: "object", eid }, tier);
+}
+function isOneHot(v){ return v > 0 && (v & (v - 1)) === 0; }
+function oneHotIndex(v){
+  if (!isOneHot(v)) return -1;
+  let i = 0; while ((1 << i) !== v) i++;
+  return i;
+}
+
+function markDirty(eid){
+  const stack = [eid], seen = new Set();
+  while (stack.length){
+    const id = stack.pop();
+    if (seen.has(id)) continue;
+    seen.add(id);
+    S.computation.dirty.add(id);
+    COMPUTED.delete(id);
+    for (const k of [...CACHE.keys()]) if (k.startsWith(id + "|")) CACHE.delete(k);
+    dependentsOf(id).forEach(d => stack.push(d));
+  }
+}
+/** Kahn topological order over the dirty subgraph. */
+function topoOrder(ids){
+  const set = new Set(ids), indeg = new Map(), out = new Map();
+  set.forEach(id => { indeg.set(id, 0); out.set(id, []); });
+  S.doc.relations.forEach(r => {
+    if (set.has(r.from) && set.has(r.to)){
+      out.get(r.from).push(r.to);
+      indeg.set(r.to, indeg.get(r.to) + 1);
+    }
+  });
+  const q = [...set].filter(id => indeg.get(id) === 0), order = [];
+  while (q.length){
+    const id = q.shift(); order.push(id);
+    out.get(id).forEach(n => { indeg.set(n, indeg.get(n) - 1); if (!indeg.get(n)) q.push(n); });
+  }
+  return order.length === set.size ? order : [...set];   // cycle fallback
+}
+/**
+ * Recompute the dirty subgraph in topological order.
+ *
+ * Failure is contained per object. One bad parameter used to throw out of the
+ * loop and leave every remaining object with no computed data at all - a blank
+ * workspace caused by an unrelated experiment. An object that throws is
+ * recorded as failed; its descendants are marked blocked rather than being fed
+ * a missing input and producing a plausible-looking wrong answer.
+ */
+function recomputeAll(){
+  const t0 = U.now();
+  const order = topoOrder([...S.computation.dirty]);
+  const failed = new Set();
+  S.computation.errors = S.computation.errors || new Map();
+
+  for (const eid of order){
+    const o = getObj(eid); if (!o) continue;
+    const fn = TYPES[o.type] && TYPES[o.type].compute;
+    if (!fn){ S.computation.dirty.delete(eid); continue; }
+
+    const blockedBy = sourcesOf(eid).find(src => failed.has(src));
+    if (blockedBy){
+      failed.add(eid);
+      S.computation.errors.set(eid, { blockedBy, message: `upstream ${blockedBy} failed` });
+      COMPUTED.delete(eid);
+      S.computation.dirty.delete(eid);
+      continue;
+    }
+    try {
+      const r = fn(o, id => COMPUTED.get(id));
+      COMPUTED.set(eid, r);
+      S.computation.errors.delete(eid);
+    } catch (e){
+      failed.add(eid);
+      S.computation.errors.set(eid, { message: e.message });
+      COMPUTED.delete(eid);
+    }
+    S.computation.dirty.delete(eid);
+  }
+  S.computation.lastMs = U.now() - t0;
+  S.computation.failed = failed;
+  bus.emit("recomputed", order);
+  if (failed.size) bus.emit("compute-error", S.computation.errors);
+}
+//#endregion
+
+//#region 07 SEMANTIC ATOMS
+/**
+ * The whole cross-highlight language. 17 atoms cover S-box, DDT, LAT, Walsh,
+ * ANF, SAC, field views and annotations. Renderers speak only this.
+ * Key order is taken from this table so atomKey() is stable.
+ */
+const ATOM_TYPES = Object.freeze({
+  object:    ["eid"],
+  note:      ["eid"],
+  in:        ["x"],
+  out:       ["y"],
+  map:       ["x", "y"],
+  dIn:       ["dx"],
+  dOut:      ["dy"],
+  diff:      ["dx", "dy"],
+  mIn:       ["a"],
+  mOut:      ["b"],
+  lin:       ["a", "b"],
+  comp:      ["b"],
+  walsh:     ["b", "a"],
+  walshStage:["b", "a", "k"],
+  mono:      ["m"],
+  bitIn:     ["i"],
+  bitOut:    ["j"],
+  /** Relationship atoms. Without these a renderer has to infer structure by
+   *  combining two atoms itself, which is reasoning and breaks AC4. */
+  pair:      ["x0", "x1"],
+  bitPair:   ["i", "j"],
+  fieldElem: ["value"],
+  fieldBit:  ["i"],
+  fieldStep: ["eid", "k"],
+  fieldTerm: ["e"]
+});
+const TIERS = Object.freeze(["primary", "contributing", "context"]);
+const TIER_RANK = Object.freeze({ primary: 3, contributing: 2, context: 1 });
+
+function atomKey(a){
+  const keys = ATOM_TYPES[a.t];
+  if (!keys) throw new Error(`unknown atom type ${a.t}`);
+  let s = a.t;
+  for (const k of keys) s += "|" + a[k];
+  return s;
+}
+
+class AtomSet {
+  constructor(){ this.map = new Map(); }   // key -> {atom, tier}
+  add(atom, tier){
+    if (!TIERS.includes(tier)) throw new Error(`bad tier ${tier}`);
+    if (this.map.size >= LIMITS.maxAtomsPerSelection) return this;
+    const key = atomKey(atom);
+    const prev = this.map.get(key);
+    if (!prev || TIER_RANK[tier] > TIER_RANK[prev.tier]){
+      this.map.set(key, { atom: Object.assign({}, atom, { tier }), tier });
+    }
+    return this;
+  }
+  /** The single primitive every renderer uses. Returns tier or null. */
+  tier(atomLike){
+    const hit = this.map.get(atomKey(atomLike));
+    return hit ? hit.tier : null;
+  }
+  /** Read all atoms of one type. Lets a renderer draw relationship atoms
+   *  (pair, bitPair) without deriving the relationship itself. */
+  ofType(t){
+    const out = [];
+    this.map.forEach(v => { if (v.atom.t === t) out.push(v); });
+    return out;
+  }
+  get size(){ return this.map.size; }
+  counts(){
+    const c = { primary: 0, contributing: 0, context: 0 };
+    this.map.forEach(v => c[v.tier]++);
+    return c;
+  }
+  list(){
+    return [...this.map.values()].sort((a, b) => TIER_RANK[b.tier] - TIER_RANK[a.tier]);
+  }
+}
+//#endregion
+
+//#region 08 SEMANTIC RESOLVER
+/**
+ * I4: ALL cross-view knowledge lives here. A raw interaction fact goes in,
+ * a tiered AtomSet comes out. Renderers never learn what a differential is.
+ */
+const RESOLVERS = Object.create(null);
+function registerResolver(kind, fn){ RESOLVERS[kind] = fn; }
+
+function resolveFact(fact){
+  const fn = RESOLVERS[fact.kind];
+  if (!fn) return null;
+  const atoms = new AtomSet();
+  fn(fact, atoms);
+  return atoms.size ? atoms : null;
+}
+
+/* -- object-level -------------------------------------------------------- */
+registerResolver("object", (f, A) => {
+  A.add({ t: "object", eid: f.eid }, "primary");
+  sourcesOf(f.eid).forEach(s => A.add({ t: "object", eid: s }, "contributing"));
+  dependentsOf(f.eid).forEach(d => A.add({ t: "object", eid: d }, "context"));
+});
+
+registerResolver("note", (f, A) => {
+  A.add({ t: "note", eid: f.eid }, "primary");
+  const n = S.doc.annotations.find(a => a.eid === f.eid);
+  if (n && n.links) n.links.forEach(l => A.add(l, "contributing"));
+});
+
+/* -- S-box mapping cell --------------------------------------------------- */
+registerResolver("sbox-cell", (f, A) => {
+  const sb = COMPUTED.get(f.eid); if (!sb) return;
+  const x = f.index, y = sb.table[x], n = sb.n;
+
+  A.add({ t: "object", eid: f.eid }, "primary");
+  A.add({ t: "map", x, y }, "primary");
+  A.add({ t: "in",  x }, "primary");
+  A.add({ t: "out", y }, "contributing");
+  A.add({ t: "fieldElem", value: x }, "context");
+  A.add({ t: "fieldElem", value: y }, "context");
+
+  // Exact DDT participation: one cell for every input difference.
+  const ddtEid = dependentOfType(f.eid, "analysis.ddt");
+  if (ddtEid){
+    addRelatedObject(A, ddtEid, "context");
+    for (let dx = 0; dx < n; dx++){
+      const dy = y ^ sb.table[x ^ dx];
+      A.add({ t: "diff", dx, dy }, dx === 0 ? "context" : "contributing");
+    }
+  }
+
+  // Exact contribution to the avalanche / influence experiment.
+  const infEid = dependentOfType(f.eid, "analysis.influence");
+  if (infEid){
+    addRelatedObject(A, infEid, "context");
+    for (let i = 0; i < sb.bits; i++){
+      const dy = y ^ sb.table[x ^ (1 << i)];
+      for (let j = 0; j < sb.bits; j++)
+        if (dy >> j & 1) A.add({ t: "bitPair", i, j }, "contributing");
+    }
+  }
+
+  // Exact truth-table contribution to the Möbius transform used by ANF.
+  const anfEid = dependentOfType(f.eid, "analysis.anf");
+  if (anfEid){
+    addRelatedObject(A, anfEid, "context");
+    if (y !== 0){
+      for (let mono = x; mono < n; mono++)
+        if ((mono & x) === x) A.add({ t: "mono", m: mono }, "context");
+    }
+  }
+
+  // AES derivation compares against this S-box; activate it only when it is
+  // currently examining this exact input.
+  const aesEid = dependentOfType(f.eid, "analysis.aesDerivation");
+  const aes = aesEid && COMPUTED.get(aesEid);
+  if (aes && aes.input === x) addRelatedObject(A, aesEid, "context");
+
+  linkAnnotations(A);
+});
+
+/* -- DDT cell: the flagship resolution ------------------------------------ */
+registerResolver("ddt-cell", (f, A) => {
+  const dx = f.row, dy = f.col;
+  const ddt = COMPUTED.get(f.eid); if (!ddt) return;
+  const sbEid = sourceOfType(f.eid, "crypto.sbox") || sourcesOf(f.eid)[0];
+  const sb = COMPUTED.get(sbEid); if (!sb) return;
+
+  A.add({ t: "object", eid: f.eid }, "primary");
+  A.add({ t: "diff", dx, dy }, "primary");
+
+  const n = 1 << sb.bits;
+  for (let x = 0; x < n; x++){
+    if ((sb.table[x] ^ sb.table[x ^ dx]) === dy){
+      A.add({ t: "in",  x }, "contributing");
+      A.add({ t: "map", x, y: sb.table[x] }, "contributing");
+      const p = x ^ dx;
+      A.add({ t: "pair", x0: Math.min(x, p), x1: Math.max(x, p) }, "contributing");
+    }
+  }
+
+  addRelatedObject(A, sbEid, "context");
+  A.add({ t: "dIn",  dx }, "context");
+  A.add({ t: "dOut", dy }, "context");
+  for (let i = 0; i < sb.bits; i++) if (dx >> i & 1) A.add({ t: "bitIn", i }, "context");
+  for (let j = 0; j < sb.bits; j++) if (dy >> j & 1) A.add({ t: "bitOut", j }, "context");
+
+  // Influence is defined for a single input-bit flip only.
+  if (isOneHot(dx)){
+    const i = oneHotIndex(dx);
+    const infEid = dependentOfType(sbEid, "analysis.influence");
+    if (infEid){
+      addRelatedObject(A, infEid, "context");
+      for (let j = 0; j < sb.bits; j++)
+        if (dy >> j & 1) A.add({ t: "bitPair", i, j }, "context");
+    }
+  }
+
+  linkAnnotations(A);
+});
+
+/* -- bit influence cell --------------------------------------------------- */
+registerResolver("influence-cell", (f, A) => {
+  const i = f.row, j = f.col, dx = 1 << i;
+  A.add({ t: "object", eid: f.eid }, "primary");
+  A.add({ t: "bitPair", i, j }, "primary");
+  A.add({ t: "bitIn",  i }, "primary");
+  A.add({ t: "bitOut", j }, "primary");
+  A.add({ t: "dIn", dx }, "contributing");
+
+  const sbEid = sourceOfType(f.eid, "crypto.sbox") || sourcesOf(f.eid)[0];
+  const sb = COMPUTED.get(sbEid);
+  if (sb){
+    addRelatedObject(A, sbEid, "context");
+    const n = 1 << sb.bits;
+    for (let x = 0; x < n; x++){
+      if ((sb.table[x] ^ sb.table[x ^ dx]) >> j & 1){
+        A.add({ t: "in", x }, "context");
+        A.add({ t: "map", x, y: sb.table[x] }, "context");
+        A.add({ t: "pair", x0: Math.min(x, x ^ dx), x1: Math.max(x, x ^ dx) }, "context");
+      }
+    }
+
+    const ddtEid = dependentOfType(sbEid, "analysis.ddt");
+    const ddt = ddtEid && COMPUTED.get(ddtEid);
+    if (ddt){
+      addRelatedObject(A, ddtEid, "context");
+      for (let dy = 0; dy < ddt.n; dy++)
+        if ((dy >> j & 1) && ddt.m[dx * ddt.n + dy] !== 0)
+          A.add({ t: "diff", dx, dy }, "contributing");
+    }
+  }
+  linkAnnotations(A);
+});
+
+
+/* -- LAT cell: linear approximation ---------------------------------------- */
+registerResolver("lat-cell", (f, A) => {
+  const a = f.row, b = f.col;
+  const lat = COMPUTED.get(f.eid); if (!lat) return;
+  const sbEid = sourceOfType(f.eid, "crypto.sbox") || sourcesOf(f.eid)[0];
+  const sb = COMPUTED.get(sbEid);
+
+  A.add({ t: "object", eid: f.eid }, "primary");
+  A.add({ t: "lin", a, b }, "primary");
+  A.add({ t: "mIn",  a }, "contributing");
+  A.add({ t: "mOut", b }, "contributing");
+  A.add({ t: "comp", b }, "contributing");
+  A.add({ t: "walsh", b, a }, "contributing");
+
+  const walEid = dependentOfType(f.eid, "analysis.walsh");
+  const wal = walEid && COMPUTED.get(walEid);
+  if (wal && wal.component === b){
+    addRelatedObject(A, walEid, "context");
+    addRelatedObject(A, dependentOfType(walEid, "analysis.walshAncestry"), "context");
+  }
+
+  if (sb){
+    addRelatedObject(A, sbEid, "context");
+    const agree = [];
+    for (let x = 0; x < sb.n; x++)
+      if (parity(a & x) === parity(b & sb.table[x])) agree.push(x);
+    if (agree.length <= ATOM_GUARD.perX)
+      for (const x of agree){
+        A.add({ t: "in", x }, "context");
+        A.add({ t: "map", x, y: sb.table[x] }, "context");
+      }
+    for (let i = 0; i < sb.bits; i++){
+      if (a >> i & 1) A.add({ t: "bitIn", i }, "context");
+      if (b >> i & 1) A.add({ t: "bitOut", j: i }, "context");
+    }
+  }
+  linkAnnotations(A);
+});
+
+/* -- Walsh coefficient ------------------------------------------------------ */
+registerResolver("walsh-coefficient", (f, A) => {
+  const w = COMPUTED.get(f.eid); if (!w) return;
+  const a = f.index, b = w.component;
+  A.add({ t: "object", eid: f.eid }, "primary");
+  A.add({ t: "walsh", b, a }, "primary");
+  A.add({ t: "mIn", a }, "primary");
+  A.add({ t: "comp", b }, "contributing");
+  A.add({ t: "lin", a, b }, "contributing");
+  A.add({ t: "mOut", b }, "context");
+
+  const latEid = sourceOfType(f.eid, "analysis.lat") || sourcesOf(f.eid)[0];
+  addRelatedObject(A, latEid, "context");
+  addRelatedObject(A, dependentOfType(f.eid, "analysis.walshAncestry"), "context");
+
+  for (let i = 0; i < w.bits; i++) if (a >> i & 1) A.add({ t: "bitIn", i }, "context");
+  for (let j = 0; j < w.bits; j++) if (b >> j & 1) A.add({ t: "bitOut", j }, "context");
+  linkAnnotations(A);
+});
+
+/* -- Walsh ancestry stage --------------------------------------------------- */
+registerResolver("walsh-ancestry-stage", (f, A) => {
+  const d = COMPUTED.get(f.eid); if (!d) return;
+  const a = safeInt(f.mask, 0, d.n - 1, d.defaultMask || 0);
+  const k = safeInt(f.stage, 0, d.bits - 1, 0);
+  const row = d.ancestry[a] && d.ancestry[a][k];
+  if (!row) return;
+
+  A.add({ t: "object", eid: f.eid }, "primary");
+  A.add({ t: "walshStage", b: d.component, a, k }, "primary");
+  A.add({ t: "walsh", b: d.component, a }, "contributing");
+  A.add({ t: "lin", a, b: d.component }, "contributing");
+  A.add({ t: "mIn", a }, "contributing");
+  A.add({ t: "comp", b: d.component }, "contributing");
+  A.add({ t: "mOut", b: d.component }, "context");
+  if (row.bit >= 0) A.add({ t: "bitIn", i: row.bit }, "context");
+
+  const walEid = sourceOfType(f.eid, "analysis.walsh") || sourcesOf(f.eid)[0];
+  addRelatedObject(A, walEid, "context");
+  const latEid = walEid && (sourceOfType(walEid, "analysis.lat") || sourcesOf(walEid)[0]);
+  addRelatedObject(A, latEid, "context");
+
+  linkAnnotations(A);
+});
+
+/* -- ANF monomial ----------------------------------------------------------- */
+registerResolver("anf-monomial", (f, A) => {
+  const anf = COMPUTED.get(f.eid); if (!anf) return;
+  const m = f.index, c = anf.coeff[m];
+  A.add({ t: "object", eid: f.eid }, "primary");
+  A.add({ t: "mono", m }, "primary");
+  for (let i = 0; i < anf.bits; i++) if (m >> i & 1) A.add({ t: "bitIn", i }, "contributing");
+  for (let j = 0; j < anf.bits; j++) if (c >> j & 1) A.add({ t: "bitOut", j }, "contributing");
+  const sbEid = sourceOfType(f.eid, "crypto.sbox") || sourcesOf(f.eid)[0];
+  const sb = COMPUTED.get(sbEid);
+  if (sb){
+    A.add({ t: "object", eid: sbEid }, "context");
+    addRelatedObject(A, dependentOfType(sbEid, "analysis.influence"), "context");
+    // A monomial with support m is determined by the x whose support contains m.
+    let n = 0;
+    for (let x = 0; x < sb.n; x++) if ((x & m) === m) n++;
+    if (n <= ATOM_GUARD.perX)
+      for (let x = 0; x < sb.n; x++)
+        if ((x & m) === m){ A.add({ t: "in", x }, "context"); A.add({ t: "map", x, y: sb.table[x] }, "context"); }
+  }
+  linkAnnotations(A);
+});
+
+
+/* -- finite-field semantic helpers ----------------------------------------- */
+function emitFieldValue(A, value, tier, bits = 8){
+  A.add({ t: "fieldElem", value }, tier);
+  for (let i = 0; i < bits; i++) if (value >> i & 1){
+    A.add({ t: "fieldBit", i }, tier === "primary" ? "contributing" : tier);
+    A.add({ t: "fieldTerm", e: i }, tier === "primary" ? "contributing" : tier);
+  }
+}
+
+registerResolver("field-element", (f, A) => {
+  const d = COMPUTED.get(f.eid); if (!d) return;
+  const item = f.slot === "b" ? d.bRepr : f.slot === "result" ? d.resultRepr : d.aRepr;
+  if (!item) return;
+  A.add({ t: "object", eid: f.eid }, "primary");
+  emitFieldValue(A, item.value, "primary", d.bits || 8);
+  linkAnnotations(A);
+});
+
+registerResolver("field-bit", (f, A) => {
+  const d = COMPUTED.get(f.eid); if (!d) return;
+  A.add({ t: "object", eid: f.eid }, "primary");
+  A.add({ t: "fieldBit", i: f.index }, "primary");
+  A.add({ t: "fieldTerm", e: f.index }, "contributing");
+  const item = f.slot === "b" ? d.bRepr : f.slot === "result" ? d.resultRepr : d.aRepr;
+  if (item) A.add({ t: "fieldElem", value: item.value }, "context");
+  linkAnnotations(A);
+});
+
+registerResolver("field-step", (f, A) => {
+  const d = COMPUTED.get(f.eid); if (!d || !d.steps[f.index]) return;
+  const st = d.steps[f.index];
+  A.add({ t: "object", eid: f.eid }, "primary");
+  A.add({ t: "fieldStep", eid: f.eid, k: f.index }, "primary");
+  emitFieldValue(A, st.before, "contributing", d.bits);
+  emitFieldValue(A, st.acc, "contributing", d.bits);
+  emitFieldValue(A, st.shifted, "context", d.bits);
+  if (st.reduced){
+    // the term that overflowed is the cause; the rest of the modulus is context
+    A.add({ t: "fieldTerm", e: d.bits }, "contributing");
+    for (const e of d.modulusRepr.terms) if (e !== d.bits) A.add({ t: "fieldTerm", e }, "context");
+    A.add({ t: "fieldElem", value: st.raw }, "context");
+  }
+  linkAnnotations(A);
+});
+
+registerResolver("aes-stage", (f, A) => {
+  const d = COMPUTED.get(f.eid); if (!d || !d.stages[f.index]) return;
+  const st = d.stages[f.index];
+  A.add({ t: "object", eid: f.eid }, "primary");
+  A.add({ t: "fieldStep", eid: f.eid, k: f.index }, "primary");
+  emitFieldValue(A, st.value, "primary", 8);
+  A.add({ t: "map", x: d.input, y: d.output }, "context");
+  A.add({ t: "in", x: d.input }, "context");
+  A.add({ t: "out", y: d.output }, "context");
+  linkAnnotations(A);
+});
+
+/** Per-x atoms stop being useful long before they stop being cheap. Beyond this
+ *  the resolver emits structure (masks, components, bits) and lets the summary
+ *  carry the count, rather than lighting half the S-box. */
+const ATOM_GUARD = Object.freeze({ perX: 64 });
+
+/** Annotations join the atom set by declaring links, not by knowing crypto. */
+function linkAnnotations(A){
+  for (const n of S.doc.annotations){
+    if (!n.links) continue;
+    if (n.links.some(l => A.tier(l))) A.add({ t: "note", eid: n.eid }, "context");
+  }
+}
+//#endregion
+
+//#region 09 EVENT BUS
+const bus = {
+  subs: Object.create(null),
+  on(ev, fn){ (this.subs[ev] || (this.subs[ev] = [])).push(fn); return this; },
+  emit(ev, payload){ (this.subs[ev] || []).forEach(fn => fn(payload)); }
+};
+
+function setSemantic(atoms){
+  S.semantic = atoms;
+  bus.emit("semantic-select", atoms);
+  requestDraw();
+}
+function clearSemantic(){
+  if (!S.semantic) return;
+  S.semantic = null;
+  bus.emit("semantic-clear");
+  requestDraw();
+}
+//#endregion
+
+//#region 10 COMPUTE KERNEL
+/* I3: nothing below this line may touch a canvas.
+   Every function here is deterministic, exact, and bounded. */
+
+//#region 10A BOOLEAN / TRANSFORM PRIMITIVES
+const POP = new Uint8Array(65536);
+for (let _i = 1; _i < 65536; _i++) POP[_i] = POP[_i >> 1] + (_i & 1);
+const popcount = v => POP[v & 0xFFFF] + POP[(v >>> 16) & 0xFFFF];
+const parity   = v => popcount(v) & 1;
+
+/** Fast Walsh-Hadamard transform, in place, O(N log N).
+ *  Engine of LAT, Walsh spectra, nonlinearity and correlation immunity.
+ *  Measured 73x faster than the naive O(N^3) LAT at 8 bits. */
+function fwht(v){
+  const N = v.length;
+  for (let len = 1; len < N; len <<= 1)
+    for (let i = 0; i < N; i += len << 1)
+      for (let j = i; j < i + len; j++){
+        const a = v[j], b = v[j + len];
+        v[j] = a + b; v[j + len] = a - b;
+      }
+  return v;
+}
+
+/** Moebius transform, in place, O(N log N). Truth table -> ANF coefficients.
+ *  Run on packed output words, one pass yields the whole vectorial ANF. */
+function moebius(v){
+  const N = v.length;
+  for (let len = 1; len < N; len <<= 1)
+    for (let i = 0; i < N; i += len << 1)
+      for (let j = i; j < i + len; j++) v[j + len] ^= v[j];
+  return v;
+}
+
+/**
+ * Exact probability, kept as a fraction.
+ *
+ * Nothing stored here is floating point. An earlier version kept
+ * Math.log2(num/den), which is an integer only when the ratio is a power of
+ * two - so any S-box with, say, differential uniformity 6 quietly put an
+ * irrational into COMPUTED. log2 is now stored only when it is exact, and the
+ * approximate form is a display string produced on the way out.
+ */
+function exactProb(num, den){
+  let a = num, b = den;
+  while (b){ const t = a % b; a = b; b = t; }
+  const g = a || 1;
+  const n = num / g, d = den / g;
+  const exactLog2 = (num && n === 1 && (d & (d - 1)) === 0) ? -Math.round(Math.log2(d)) : null;
+  return {
+    num, den, n, d, exactLog2,
+    text: !num ? "0"
+        : exactLog2 !== null ? `${num}/${den} = 2^${exactLog2}`
+        : `${num}/${den} = ${n}/${d}`,
+    approxLog2Text: num ? `2^${(Math.log2(num / den)).toFixed(2)}` : ""
+  };
+}
+//#endregion
+
+//#region 10B FINITE FIELDS
+/** GF(2^n) with a caller-supplied reduction polynomial. Exp/log tables are
+ *  built by searching for a generator, which also proves primitivity. */
+/** Field construction runs a generator search, so it is memoised on
+ *  (bits, modulus). It was previously rebuilt on every recompute of every
+ *  field-backed object. */
+const FIELD_CACHE = new Map();
+function makeField(bits, modulus){
+  const ck = bits + ":" + modulus;
+  const hit = FIELD_CACHE.get(ck);
+  if (hit) return hit;
+  const f = buildField(bits, modulus);
+  if (FIELD_CACHE.size < 64) FIELD_CACHE.set(ck, f);
+  return f;
+}
+function buildField(bits, modulus){
+  const N = 1 << bits, hi = 1 << bits;
+  const mul = (a, b) => {
+    let r = 0;
+    while (b){
+      if (b & 1) r ^= a;
+      b >>= 1; a <<= 1;
+      if (a & hi) a ^= modulus;
+    }
+    return r;
+  };
+  let gen = 0, exp = null, log = null;
+  for (let g = 2; g < N && !exp; g++){
+    const e = new Uint16Array(2 * N), l = new Uint16Array(N);
+    let x = 1, ok = true;
+    for (let i = 0; i < N - 1; i++){
+      if (i && x === 1){ ok = false; break; }
+      e[i] = x; l[x] = i; x = mul(x, g);
+    }
+    if (ok && x === 1){
+      for (let i = N - 1; i < 2 * N; i++) e[i] = e[i - (N - 1)];
+      gen = g; exp = e; log = l;
+    }
+  }
+  if (!exp) throw new Error(`modulus 0x${modulus.toString(16)} is not primitive over GF(2^${bits})`);
+  const inv = a => a === 0 ? 0 : exp[(N - 1) - log[a]];
+  return { bits, N, modulus, gen, mul, inv, exp, log,
+           pow: (a, k) => a === 0 ? 0 : exp[(log[a] * k) % (N - 1)],
+           /**
+            * Multiplication with every intermediate exposed.
+            *
+            * `raw` is the shifted value BEFORE reduction, carrying the degree-n
+            * term that triggers it. Without it the microscope can state that a
+            * reduction happened but cannot show the x^n term being cancelled,
+            * which is the entire point of the view.
+            */
+           mulTrace(a, b){
+             const steps = [];
+             let r = 0, aa = a, bb = b;
+             let k = 0;
+             while (bb){
+               const took = !!(bb & 1);
+               const addend = aa;
+               const accBefore = r;
+               if (took) r ^= aa;
+               bb >>= 1;
+               const raw = aa << 1;                 // may carry bit `bits`
+               const overflow = !!(raw & hi);
+               aa = overflow ? raw ^ modulus : raw;
+               steps.push({
+                 k: k++, bBit: took ? 1 : 0,
+                 addend,                            // what was XORed in this step
+                 accBefore, acc: r,
+                 raw,                               // pre-reduction, degree may be n
+                 shifted: aa,                       // post-reduction, degree < n
+                 reduced: overflow
+               });
+             }
+             return { result: r, steps, modulus, bits };
+           } };
+}
+
+/** The AES S-box built from its definition, not pasted as 256 magic bytes.
+ *  This is what makes the workspace a derivation rather than a table viewer. */
+function aesSbox(){
+  const F = makeField(8, 0x11B);
+  const t = new Uint8Array(256);
+  for (let x = 0; x < 256; x++){
+    const i = F.inv(x);
+    let b = i;
+    b ^= ((i << 1) | (i >>> 7)) & 0xFF;
+    b ^= ((i << 2) | (i >>> 6)) & 0xFF;
+    b ^= ((i << 3) | (i >>> 5)) & 0xFF;
+    b ^= ((i << 4) | (i >>> 4)) & 0xFF;
+    t[x] = b ^ 0x63;
+  }
+  return { table: t, field: F, affineConstant: 0x63 };
+}
+
+
+/** Display-ready representation for one GF(2^n) element. Computed here so
+ *  renderers never derive polynomial or bit structure themselves. */
+function fieldRepresentation(value, bits = 8, width){
+  // `width` lets a caller represent a degree-n intermediate (the overflowed
+  // product) rather than silently masking the x^n term out of existence.
+  const w = width || bits;
+  const mask = (1 << w) - 1, v = value & mask;
+  const terms = [];
+  for (let e = w - 1; e >= 0; e--) if (v >> e & 1) terms.push(e);
+  const poly = terms.length ? terms.map(e => e === 0 ? "1" : e === 1 ? "x" : `x^${e}`).join(" + ") : "0";
+  return {
+    value: v,
+    hex: "0x" + U.hex(v, Math.ceil(w / 4)),
+    binary: U.bin(v, w),
+    width: w,
+    degree: terms.length ? terms[0] : -1,
+    bits: Array.from({ length: w }, (_, i) => (v >> (w - 1 - i)) & 1),
+    terms,
+    polynomial: poly
+  };
+}
+
+/** Polynomial label for any modulus. The previous version hardcoded the AES
+ *  string, so GF(2^4) with modulus 0x13 displayed "x^8 + x^4 + x^3 + x + 1". */
+function modulusRepresentation(modulus, bits){
+  const terms = [];
+  for (let e = bits; e >= 0; e--) if (modulus >> e & 1) terms.push(e);
+  return {
+    value: modulus, terms,
+    hex: "0x" + modulus.toString(16).toUpperCase(),
+    binary: U.bin(modulus, bits + 1),
+    polynomial: terms.map(e => e === 0 ? "1" : e === 1 ? "x" : `x^${e}`).join(" + ") || "0"
+  };
+}
+
+function computeGFMultiply(o){
+  const bits = safeInt(o.definition.bits, 2, 8, 8);
+  // A modulus must have degree exactly `bits`, i.e. sit in [2^bits+1, 2^(bits+1)-1].
+  const dflt = bits === 8 ? 0x11B : (1 << bits) | 0x3;
+  const modulus = safeInt(o.definition.modulus, (1 << bits) + 1, (1 << (bits + 1)) - 1, dflt);
+  const F = makeField(bits, modulus);
+  const max = (1 << bits) - 1;
+  const a = safeInt(o.definition.a, 0, max, 0x57);
+  const b = safeInt(o.definition.b, 0, max, 0x83);
+  const tr = F.mulTrace(a, b);
+  const modRepr = modulusRepresentation(modulus, bits);
+  const steps = tr.steps.map(st => ({
+    k: st.k, bBit: st.bBit, took: !!st.bBit, reduced: !!st.reduced,
+    addend: st.addend & max, acc: st.acc & max, accBefore: st.accBefore & max,
+    raw: st.raw, shifted: st.shifted & max,
+    addendRepr:  fieldRepresentation(st.addend, bits),
+    accRepr:     fieldRepresentation(st.acc, bits),
+    // the overflowed product needs one extra bit position so x^n is visible
+    rawRepr:     fieldRepresentation(st.raw, bits, bits + 1),
+    shiftedRepr: fieldRepresentation(st.shifted, bits),
+    // exactly which modulus terms cancel which raw terms
+    cancels: st.reduced ? modRepr.terms.filter(e => (st.raw >> e & 1) === 1) : [],
+    introduces: st.reduced ? modRepr.terms.filter(e => (st.raw >> e & 1) === 0) : []
+  }));
+  return {
+    bits, modulus, generator: F.gen,
+    a, b, result: tr.result,
+    aRepr: fieldRepresentation(a, bits),
+    bRepr: fieldRepresentation(b, bits),
+    resultRepr: fieldRepresentation(tr.result, bits),
+    modulusRepr: modRepr,
+    reductionCount: steps.filter(st => st.reduced).length,
+    steps
+  };
+}
+//#endregion
+
+//#region 10D COMPUTATION BUDGET
+/** Bounded work. Every expensive function declares its cost before running,
+ *  so a hostile or careless document cannot request 2^40 operations. */
+const BUDGET = Object.freeze({ maxOps: 400e6, maxCells: 4194304 });
+
+function checkBudget(label, ops, cells){
+  if (cells > BUDGET.maxCells)
+    throw new Error(`${label}: ${cells.toLocaleString()} cells exceeds ${BUDGET.maxCells.toLocaleString()}`);
+  if (ops > BUDGET.maxOps)
+    throw new Error(`${label}: ~${(ops / 1e6).toFixed(0)}M ops exceeds ${(BUDGET.maxOps / 1e6)}M budget`);
+}
+function provenance(o, algo, extra){
+  return Object.assign({
+    source: sourcesOf(o.eid)[0] || null,
+    algorithm: algo, algorithmVersion: 1, exact: true, app: APP.version
+  }, extra || {});
+}
+//#endregion
+
+//#region 10C TEST CRYPTO KERNEL
+/* Promoted from the 4-bit placeholder to a real analysis kernel. All results
+   are exact integers; no floating point enters any stored value. Verified
+   against published AES constants: uniformity 4, nonlinearity 112, degree 7. */
+
+function computeSbox(o){
+  const bits = safeInt(o.definition.bits, 2, LIMITS.maxSboxBits, 4);
+  const N = 1 << bits;
+  let table;
+  if (o.definition.construction === "aes"){
+    table = aesSbox().table;
+  } else {
+    const src = Array.isArray(o.definition.table) ? o.definition.table : [];
+    table = new Uint8Array(N);
+    for (let i = 0; i < N; i++) table[i] = safeInt(src[i], 0, N - 1, i);
+  }
+  const seen = new Set(table);
+  let fixed = 0, opposite = 0;
+  for (let x = 0; x < N; x++){
+    if (table[x] === x) fixed++;
+    if (table[x] === (x ^ (N - 1))) opposite++;
+  }
+  return { bits, n: N, table, bijective: seen.size === N,
+           fixedPoints: fixed, oppositeFixedPoints: opposite,
+           construction: o.definition.construction || "explicit" };
+}
+
+
+function computeAesDerivation(o, get){
+  const x = safeInt(o.definition.input, 0, 255, 0x53);
+  const F = makeField(8, 0x11B);
+  const inv = F.inv(x);
+  const rot = k => ((inv << k) | (inv >>> (8 - k))) & 0xFF;
+  const r1 = rot(1), r2 = rot(2), r3 = rot(3), r4 = rot(4);
+  const m1 = inv ^ r1;
+  const m2 = m1 ^ r2;
+  const m3 = m2 ^ r3;
+  const m4 = m3 ^ r4;
+  const y = m4 ^ 0x63;
+  const stages = [
+    { role: "input", label: "Input byte", value: x },
+    { role: "inverse", label: "GF(2^8) inverse", value: inv },
+    { role: "affine1", label: "xor rotl1", value: m1, operand: r1 },
+    { role: "affine2", label: "xor rotl2", value: m2, operand: r2 },
+    { role: "affine3", label: "xor rotl3", value: m3, operand: r3 },
+    { role: "affine4", label: "xor rotl4", value: m4, operand: r4 },
+    { role: "constant", label: "xor affine constant 0x63", value: y, operand: 0x63 },
+    { role: "output", label: "AES S-box output", value: y }
+  ].map((st, k) => Object.assign({ k, repr: fieldRepresentation(st.value, 8) }, st));
+  const src = get(sourcesOf(o.eid)[0]);
+  const sourceValue = src && src.table ? src.table[x] : null;
+  return {
+    bits: 8, input: x, inverse: inv, output: y, affineConstant: 0x63,
+    sourceValue, matchesSource: sourceValue == null ? null : sourceValue === y,
+    inputRepr: fieldRepresentation(x, 8), inverseRepr: fieldRepresentation(inv, 8),
+    outputRepr: fieldRepresentation(y, 8), stages,
+    modulusRepr: modulusRepresentation(0x11B, 8)
+  };
+}
+
+function computeDDT(o, get){
+  const sb = get(sourcesOf(o.eid)[0]); if (!sb) return null;
+  const N = sb.n;
+  checkBudget("DDT", N * N, N * N);
+  const m = new Uint16Array(N * N);
+  for (let dx = 0; dx < N; dx++){
+    const row = dx * N;
+    for (let x = 0; x < N; x++) m[row + (sb.table[x] ^ sb.table[x ^ dx])]++;
+  }
+  let u = 0;
+  for (let i = N; i < m.length; i++) if (m[i] > u) u = m[i];
+  const hist = new Map();
+  for (let i = 0; i < m.length; i++) hist.set(m[i], (hist.get(m[i]) || 0) + 1);
+  return { n: N, m, uniformity: u, denom: N,
+           distinct: [...hist.keys()].sort((a, b) => a - b),
+           histogram: hist,
+           bestProb: exactProb(u, N),
+           rowLabel: "dx", colLabel: "dy", kind: "ddt" };
+}
+
+/** LAT[a][b] = #{x : <a,x> == <b,S(x)>} - 2^(n-1), computed as W_b(a)/2. */
+function computeLAT(o, get){
+  const sb = get(sourcesOf(o.eid)[0]); if (!sb) return null;
+  const N = sb.n, bits = sb.bits;
+  checkBudget("LAT", N * N * bits, N * N);
+  const m = new Int16Array(N * N);
+  const buf = new Int32Array(N);
+  let maxAbs = 0;
+  for (let b = 0; b < N; b++){
+    for (let x = 0; x < N; x++) buf[x] = parity(sb.table[x] & b) ? -1 : 1;
+    fwht(buf);
+    for (let a = 0; a < N; a++){
+      const v = buf[a] >> 1;                 // W is always even, so this is exact
+      m[a * N + b] = v;
+      if (b && Math.abs(v) > maxAbs) maxAbs = Math.abs(v);
+    }
+  }
+  const hist = new Map();
+  for (let i = 0; i < m.length; i++){ const k = Math.abs(m[i]); hist.set(k, (hist.get(k) || 0) + 1); }
+  return { n: N, m, maxAbs, nonlinearity: (N >> 1) - maxAbs,
+           bestBias: exactProb(maxAbs, N),
+           distinct: [...hist.keys()].sort((a, b) => a - b),
+           histogram: hist, signed: true,
+           rowLabel: "a", colLabel: "b", kind: "lat" };
+}
+
+/** One component's Walsh spectrum plus a compact stage ancestry model.
+ *  The spectrum is still sliced from LAT for the final values, but the ancestry
+ *  stores the actual FWHT partial sums. Renderers never reconstruct transform math. */
+function computeWalsh(o, get){
+  const latEid = sourcesOf(o.eid)[0];
+  const lat = get(latEid); if (!lat) return null;
+  const N = lat.n, bits = Math.log2(N) | 0;
+  const b = safeInt(o.definition.component, 1, N - 1, 1);
+  const w = new Int32Array(N);
+  let maxAbs = 0;
+  for (let a = 0; a < N; a++){
+    w[a] = lat.m[a * N + b] * 2;
+    const k = Math.abs(w[a]); if (k > maxAbs) maxAbs = k;
+  }
+  let ci = -1;
+  for (let d = 1; d <= bits; d++){
+    let clean = true;
+    for (let a = 1; a < N && clean; a++) if (popcount(a) <= d && w[a] !== 0) clean = false;
+    if (clean) ci = d; else break;
+  }
+  const sboxEid = sourcesOf(latEid)[0];
+  const sb = get(sboxEid);
+  const stageValues = [];
+  if (sb && sb.table){
+    let cur = new Int32Array(N);
+    for (let x = 0; x < N; x++) cur[x] = parity(sb.table[x] & b) ? -1 : 1;
+    stageValues.push(new Int32Array(cur));
+    for (let k = 0; k < bits; k++){
+      const len = 1 << k, next = new Int32Array(cur);
+      for (let i = 0; i < N; i += len << 1){
+        for (let j = 0; j < len; j++){
+          const u = cur[i + j], v = cur[i + j + len];
+          next[i + j] = u + v;
+          next[i + j + len] = u - v;
+        }
+      }
+      cur = next; stageValues.push(new Int32Array(cur));
+    }
+  }
+  const ancestry = Array.from({ length: N }, (_, a) => {
+    const rows = [];
+    for (let k = 0; k < bits; k++){
+      const len = 1 << k, low = a & ~len, high = low | len;
+      const prev = stageValues[k], after = stageValues[k + 1];
+      const subtract = !!(a & len);
+      rows.push({ stage:k, bit:k, branch:subtract ? "difference" : "sum",
+                  leftIndex:low, rightIndex:high,
+                  left:prev ? prev[low] : 0, right:prev ? prev[high] : 0,
+                  result:after ? after[a] : 0 });
+    }
+    return rows;
+  });
+  return { n:N, bits, w, component:b, maxAbs,
+           nonlinearity:(N >> 1) - (maxAbs >> 1),
+           correlationImmunity:ci, balanced:w[0] === 0, kind:"walsh",
+           stageValues, ancestry };
+}
+
+function computeWalshAncestry(o, get){
+  const w = get(sourcesOf(o.eid)[0]); if (!w) return null;
+  return { n:w.n, bits:w.bits, component:w.component, maxAbs:w.maxAbs, w:w.w,
+           ancestry:w.ancestry, defaultMask:safeInt(o.definition.mask, 0, w.n - 1, 1),
+           kind:"walsh-ancestry" };
+}
+
+/** Vectorial ANF in a single Moebius pass over packed output words. */
+function computeANF(o, get){
+  const sb = get(sourcesOf(o.eid)[0]); if (!sb) return null;
+  const N = sb.n, bits = sb.bits;
+  const coeff = new Uint16Array(N);
+  for (let x = 0; x < N; x++) coeff[x] = sb.table[x];
+  moebius(coeff);
+  let degree = 0, terms = 0;
+  const byDegree = new Uint32Array(bits + 1);
+  for (let mm = 0; mm < N; mm++){
+    if (!coeff[mm]) continue;
+    terms++;
+    const d = popcount(mm);
+    byDegree[d]++;
+    if (d > degree) degree = d;
+  }
+  return { n: N, bits, coeff, degree, terms, byDegree, kind: "anf" };
+}
+
+function computeInfluence(o, get){
+  const sb = get(sourcesOf(o.eid)[0]); if (!sb) return null;
+  const b = sb.bits, N = sb.n, m = new Uint16Array(b * b);
+  for (let i = 0; i < b; i++){
+    const dx = 1 << i;
+    for (let x = 0; x < N; x++){
+      const d = sb.table[x] ^ sb.table[x ^ dx];
+      for (let j = 0; j < b; j++) if (d >> j & 1) m[i * b + j]++;
+    }
+  }
+  let dev = 0;
+  for (let i = 0; i < b * b; i++) dev = Math.max(dev, Math.abs(m[i] - (N >> 1)));
+  return { b, n: N, m, ideal: N >> 1, maxDeviation: dev, kind: "sac" };
+}
+//#endregion
+//#endregion
+
+//#region 11 RENDER CORE
+const cv = document.getElementById("cv");
+const ctx = cv.getContext("2d");
+let DPR = 1, _drawQueued = false;
+
+function resize(){
+  const r = cv.parentElement.getBoundingClientRect();
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  cv.width = Math.max(1, Math.floor(r.width * DPR));
+  cv.height = Math.max(1, Math.floor(r.height * DPR));
+  requestDraw();
+}
+const V = S.doc.view;
+const w2s = p => ({ x: (p.x - V.x) * V.z, y: (p.y - V.y) * V.z });
+const s2w = p => ({ x: p.x / V.z + V.x, y: p.y / V.z + V.y });
+
+function zoomExtents(){
+  const os = S.doc.objects.concat(S.doc.annotations);
+  if (!os.length) return;
+  const b = os.reduce((a, o) => ({
+    x0: Math.min(a.x0, o.visual.x), y0: Math.min(a.y0, o.visual.y),
+    x1: Math.max(a.x1, o.visual.x + o.visual.w), y1: Math.max(a.y1, o.visual.y + o.visual.h)
+  }), { x0: 1e9, y0: 1e9, x1: -1e9, y1: -1e9 });
+  const vw = cv.width / DPR, vh = cv.height / DPR, pad = 56;
+  V.z = U.clamp(Math.min((vw - pad * 2) / (b.x1 - b.x0), (vh - pad * 2) / (b.y1 - b.y0)), .1, 8);
+  V.x = b.x0 - (vw / V.z - (b.x1 - b.x0)) / 2;
+  V.y = b.y0 - (vh / V.z - (b.y1 - b.y0)) / 2;
+  requestDraw();
+}
+
+function focusObject(eid){
+  const o = getObj(eid); if (!o) return;
+  const vw = cv.width / DPR, vh = cv.height / DPR, pad = 70;
+  V.z = U.clamp(Math.min((vw - pad * 2) / o.visual.w, (vh - pad * 2) / (o.visual.h + 22)), .2, 10);
+  V.x = o.visual.x - (vw / V.z - o.visual.w) / 2;
+  V.y = (o.visual.y - 22) - (vh / V.z - (o.visual.h + 22)) / 2;
+  S.selection.clear(); S.selection.add(o.eid); paintObj(); paintUnderstand(); requestDraw();
+}
+
+function requestDraw(){
+  if (_drawQueued) return;
+  _drawQueued = true;
+  requestAnimationFrame(() => { _drawQueued = false; draw(); });
+}
+
+function draw(){
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.clearRect(0, 0, cv.width, cv.height);
+
+  const env = {
+    atoms: S.semantic,
+    hasSemantic: !!S.semantic,
+    zoom: V.z,
+    /** The only semantic primitive a renderer gets. */
+    tier: a => S.semantic ? S.semantic.tier(a) : null
+  };
+
+  for (const o of S.doc.objects){
+    const R = RENDER[o.visual.renderer];
+    if (!R) continue;
+    const p = w2s({ x: o.visual.x, y: o.visual.y });
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.scale(V.z, V.z);
+    drawFrame(o, env);
+    R.draw(ctx, o, COMPUTED.get(o.eid), env);
+    ctx.restore();
+  }
+  for (const n of S.doc.annotations){
+    const p = w2s({ x: n.visual.x, y: n.visual.y });
+    ctx.save(); ctx.translate(p.x, p.y); ctx.scale(V.z, V.z);
+    RENDER["annotation.note"].draw(ctx, n, null, env);
+    ctx.restore();
+  }
+  paintStatus();
+}
+
+/** Relationship semantics are deliberately NOT painted as canvas arrows.
+ *  Glassbox is an analytical workbench, not a node editor. Relationships remain
+ *  exact in S.doc.relations and are presented in the Inspector and object chrome. */
+function drawRelations(env){ /* intentionally empty */ }
+
+function drawFrame(o, env){
+  const t = env.tier({ t: "object", eid: o.eid });
+  const dimmed = env.hasSemantic && !t;
+  ctx.globalAlpha = dimmed ? .28 : 1;
+  ctx.fillStyle = "#131a23";
+  ctx.fillRect(0, -22, o.visual.w, o.visual.h + 22);
+  ctx.strokeStyle = t === "primary" ? "#ffd166"
+                  : t === "contributing" ? "#e0912c"
+                  : (S.selection.has(o.eid) && S.ui.guideTarget !== o.eid) ? "#3fbdd6" : "#212c38";
+  ctx.lineWidth = (t === "primary" ? 1.6 : 1) / V.z;
+  ctx.strokeRect(.5, -21.5, o.visual.w - 1, o.visual.h + 21);
+  ctx.fillStyle = t ? "#f3c969" : "#aeb8c3";
+  ctx.font = "600 9px " + MONO;
+  ctx.textBaseline = "middle";
+  const label = o.type === "crypto.sbox" ? "S-BOX MAPPING"
+              : o.type === "analysis.ddt" ? "DIFFERENTIAL DISTRIBUTION"
+              : o.type === "analysis.influence" ? "BIT INFLUENCE"
+              : o.type === "analysis.aesDerivation" ? "AES S-BOX DERIVATION"
+              : o.type === "analysis.walshAncestry" ? "WALSH ANCESTRY"
+              : o.type === "math.gfMultiply" ? "GF(2^8) MULTIPLICATION MICROSCOPE"
+              : o.type.toUpperCase();
+  ctx.fillText(label, 8, -11);
+  ctx.fillStyle = "#65717e"; ctx.font = "8px " + MONO;
+  const incoming = S.doc.relations.filter(r => r.to === o.eid);
+  const outgoing = S.doc.relations.filter(r => r.from === o.eid);
+  const relationBits = [];
+  if (incoming.length) relationBits.push(`${incoming.length} source${incoming.length===1?"":"s"}`);
+  if (outgoing.length) relationBits.push(`${outgoing.length} linked view${outgoing.length===1?"":"s"}`);
+  const relLabel = relationBits.join(" · ");
+  ctx.textAlign = "right";
+  ctx.fillText(relLabel ? `${relLabel}   ${o.eid}` : o.eid, o.visual.w - 8, -11);
+  ctx.textAlign = "left";
+  if (S.ui.guideTarget === o.eid){
+    ctx.save();
+    const gx=-8/V.z, gy=-30/V.z, gw=o.visual.w+16/V.z, gh=o.visual.h+38/V.z;
+    ctx.strokeStyle="#6baee6"; ctx.lineWidth=2/V.z; ctx.setLineDash([5/V.z,4/V.z]);
+    ctx.strokeRect(gx,gy,gw,gh);
+    ctx.setLineDash([]);
+    ctx.font="700 8px "+MONO;
+    const tw=ctx.measureText("GUIDE TARGET").width;
+    const tagX=gx, tagY=gy-13/V.z, tagW=tw+10/V.z, tagH=13/V.z;
+    ctx.fillStyle="#6baee6";
+    ctx.fillRect(tagX,tagY,tagW,tagH);
+    ctx.fillStyle="#0b131a";
+    ctx.textBaseline="middle";
+    ctx.fillText("GUIDE TARGET",tagX+5/V.z,tagY+tagH/2);
+    ctx.restore();
+  }
+  const err = S.computation.errors && S.computation.errors.get(o.eid);
+  if (err){
+    ctx.fillStyle = "#e37b75"; ctx.textAlign = "right";
+    ctx.fillText(err.blockedBy ? `blocked by ${err.blockedBy}` : "compute error", o.visual.w - 8, -11);
+    ctx.textAlign = "left"; ctx.globalAlpha = 1;
+    ctx.fillStyle = "rgba(100,24,30,.22)"; ctx.fillRect(0, 0, o.visual.w, o.visual.h);
+    ctx.strokeStyle = "#e37b75"; ctx.lineWidth = 1 / V.z;
+    ctx.beginPath(); ctx.moveTo(8, 12); ctx.lineTo(o.visual.w - 8, 12); ctx.stroke();
+    ctx.fillStyle = "#e9a19d"; ctx.font = "9px " + MONO;
+    ctx.fillText((err.message || "computation failed").slice(0, 62), 8, 27);
+  } else if (S.computation.dirty.has(o.eid)){
+    ctx.fillStyle = "#e2626b"; ctx.fillText("dirty", o.visual.w - 32, -11);
+  }
+}
+const MONO = 'ui-monospace,"SF Mono",Menlo,Consolas,monospace';
+//#endregion
+
+//#region 12 RENDERERS
+/**
+ * Renderer contract - three jobs, no mathematics:
+ *   DATA      read COMPUTED, never derive
+ *   RASTER    cached ImageData bitmap, one drawImage per frame
+ *   SEMANTICS coordinate -> fact (out), atom -> tier (in)
+ */
+const RENDER = Object.create(null);
+
+/* ---------- colour mapping: domain-aware, not a generic gradient ---------- */
+const COLOUR = {
+  /** DDT is almost all 0 and 2 with rare 4s. A linear ramp renders as noise. */
+  categorical(v, distinct){
+    if (v === 0) return [16, 22, 30];
+    const i = distinct.indexOf(v), k = Math.max(1, distinct.length - 1);
+    const t = i / k;
+    return [40 + 200 * t, 60 + 90 * t, 90 - 30 * t];
+  },
+  /** Signed data (LAT, Walsh) clusters hard at zero with rare extremes at the
+   *  tails. Those extremes are the only interesting cells, so rank the
+   *  magnitude rather than scaling it linearly. */
+  diverging(v, max){
+    if (v === 0) return [14, 19, 26];
+    const t = Math.sqrt(Math.abs(v) / max);
+    return v > 0 ? [30 + 215 * t, 45 + 120 * t, 60 - 20 * t]
+                 : [40 - 10 * t, 70 + 90 * t, 100 + 130 * t];
+  },
+  ramp(v, max){
+    const t = max ? v / max : 0;
+    return [20 + 210 * t, 30 + 100 * t, 50 + 40 * (1 - t)];
+  }
+};
+
+function rasterKey(o, extra){ return `${o.eid}|${defHash(o)}|${extra}`; }
+
+/** Build an n x n bitmap once. Scales to 256x256 with zero code change. */
+function buildRaster(n, pick){
+  const c = document.createElement("canvas");
+  c.width = n; c.height = n;
+  const g = c.getContext("2d"), img = g.createImageData(n, n), d = img.data;
+  for (let r = 0; r < n; r++){
+    for (let col = 0; col < n; col++){
+      const [R, G, B] = pick(r, col);
+      const o = (r * n + col) * 4;
+      d[o] = R; d[o + 1] = G; d[o + 2] = B; d[o + 3] = 255;
+    }
+  }
+  g.putImageData(img, 0, 0);
+  return c;
+}
+
+/* ---------- view.matrix : raster-backed, semantic overlay ---------------- */
+RENDER["view.matrix"] = {
+  geom(o, data){
+    const pad = 34, n = data ? data.n : 1;
+    return { pad, n, cell: (o.visual.w - pad) / n };
+  },
+  draw(c, o, data, env){
+    if (!data) return;
+    const { pad, n, cell } = this.geom(o, data);
+    const AM = atomMapOf(o);
+    const mode = o.definition.colourMode || (data.signed ? "diverging" : "categorical");
+    const thr  = o.definition.threshold;
+
+    const key = rasterKey(o, mode + "|" + thr);
+    let ras = CACHE.get(key);
+    if (!ras){
+      const max = data.distinct[data.distinct.length - 1];
+      ras = buildRaster(n, (r, col) => {
+        const v = data.m[r * n + col];
+        if (thr != null && (data.signed ? Math.abs(v) : v) < thr) return [14, 19, 26];
+        return mode === "diverging"   ? COLOUR.diverging(v, data.maxAbs || max)
+             : mode === "categorical" ? COLOUR.categorical(v, data.distinct)
+             :                          COLOUR.ramp(v, max);
+      });
+      CACHE.set(key, ras);
+    }
+
+    c.save();
+    c.globalAlpha = env.hasSemantic && !env.tier({ t: "object", eid: o.eid }) ? .3 : 1;
+    c.imageSmoothingEnabled = false;
+    c.drawImage(ras, pad, pad, n * cell, n * cell);   // ONE draw call
+
+    // 16x16 hexadecimal guide grid. This does not aggregate cells: it is only
+    // a coordinate scaffold over the full 256x256 exact matrix.
+    if (n === 256){
+      c.globalAlpha = env.hasSemantic && !env.tier({ t: "object", eid: o.eid }) ? .18 : .48;
+      c.strokeStyle = "rgba(166,184,201,.26)";
+      c.lineWidth = .7 / V.z;
+      c.font = "8px " + MONO;
+      c.fillStyle = "#647383";
+      c.textBaseline = "middle";
+      for (let q = 0; q <= 256; q += 16){
+        const p = pad + q * cell;
+        c.beginPath(); c.moveTo(p, pad); c.lineTo(p, pad + n * cell); c.stroke();
+        c.beginPath(); c.moveTo(pad, p); c.lineTo(pad + n * cell, p); c.stroke();
+        if (q < 256){
+          c.textAlign = "center";
+          c.fillText(U.hex(q,2), pad + (q + 8) * cell, pad - 8);
+          c.textAlign = "right";
+          c.fillText(U.hex(q,2), pad - 5, pad + (q + 8) * cell);
+        }
+      }
+      c.textAlign = "left";
+    }
+
+    // Semantic overlay, driven by the atom set rather than the grid.
+    // Scanning 65,536 cells per frame would cost ~196k map lookups; the atom
+    // set is tens to low thousands, so this is O(atoms) not O(cells).
+    if (env.hasSemantic && env.atoms && AM){
+      const paint = (r, col, t, whole) => {
+        if (r < 0 || col < 0) return;
+        c.globalAlpha = t === "primary" ? 1 : t === "contributing" ? .72 : .26;
+        c.fillStyle = t === "context" ? "rgba(255,193,71,.20)" : "rgba(255,209,102,.55)";
+        if (whole === "row")      c.fillRect(pad, pad + r * cell, n * cell, cell);
+        else if (whole === "col") c.fillRect(pad + col * cell, pad, cell, n * cell);
+        else                      c.fillRect(pad + col * cell, pad + r * cell, cell, cell);
+      };
+      for (const { atom, tier } of env.atoms.ofType(AM.rowType))
+        paint(atom[AM.rowKey], -1, tier, "row");
+      for (const { atom, tier } of env.atoms.ofType(AM.colType))
+        paint(-1, atom[AM.colKey], tier, "col");
+      for (const { atom, tier } of env.atoms.ofType(AM.cellType)){
+        const r = atom[AM.cellRow], col = atom[AM.cellCol];
+        paint(r, col, tier);
+        if (tier === "primary"){
+          c.globalAlpha = 1;
+          c.strokeStyle = "#ffd166"; c.lineWidth = Math.max(1.4, 2 / V.z);
+          c.strokeRect(pad + col * cell, pad + r * cell, cell, cell);
+        }
+      }
+    }
+
+    c.globalAlpha = 1;
+    c.fillStyle = "#556676"; c.font = "10px " + MONO;
+    c.fillText(data.rowLabel + " \u2193", 3, pad - 8);
+    c.fillText(data.colLabel + " \u2192", pad + 2, 12);
+
+    if (S.prefs.showValues && cell * V.z > 15 && n * n <= 4096){
+      c.font = "8px " + MONO; c.textAlign = "center"; c.textBaseline = "middle";
+      for (let r = 0; r < n; r++) for (let col = 0; col < n; col++){
+        const v = data.m[r * n + col]; if (!v) continue;
+        c.fillStyle = "rgba(240,246,252,.72)";
+        c.fillText(v, pad + col * cell + cell / 2, pad + r * cell + cell / 2);
+      }
+      c.textAlign = "left";
+    }
+    c.restore();
+  },
+  semanticHitTest(o, lp, data){
+    if (!data) return null;
+    const { pad, n, cell } = this.geom(o, data);
+    const col = Math.floor((lp.x - pad) / cell), r = Math.floor((lp.y - pad) / cell);
+    if (r < 0 || col < 0 || r >= n || col >= n) return null;
+    return { kind: factKindOf(o), eid: o.eid, row: r, col };
+  }
+};
+
+/* ---------- view.table : S-box mappings ---------------------------------- */
+RENDER["view.table"] = {
+  geom(o, data){
+    const n = data ? data.n : 16;
+    const top = 24, bottom = 18, leftX = 52, rightX = o.visual.w - 52;
+    const step = (o.visual.h - top - bottom) / Math.max(1, n - 1);
+    return { n, top, bottom, leftX, rightX, step, hitR: Math.max(4.2, Math.min(6.2, step * .38)) };
+  },
+  draw(c, o, data, env){
+    if (!data) return;
+    const { n, top, leftX, rightX, step, hitR } = this.geom(o, data);
+    c.save();
+    c.font = "9px " + MONO;
+    c.textBaseline = "middle";
+    c.lineCap = "round";
+
+    // 0x10 group guides: preserve every mapping while giving 8-bit space
+    // a readable coordinate rhythm (00-0F, 10-1F, ... F0-FF).
+    c.globalAlpha = env.hasSemantic ? .10 : .24;
+    c.strokeStyle = "#263442";
+    c.fillStyle = "#526171";
+    c.font = "8px " + MONO;
+    c.textAlign = "left";
+    for (let base = 0; base < n; base += 16){
+      const gy = top + base * step;
+      c.beginPath(); c.moveTo(18, gy); c.lineTo(o.visual.w - 18, gy); c.stroke();
+      c.fillText(U.hex(base, 2), 20, gy - 4);
+    }
+
+    // calm structural rails
+    c.globalAlpha = env.hasSemantic ? .25 : .7;
+    c.strokeStyle = "#33404d";
+    c.lineWidth = .8 / V.z;
+    c.beginPath(); c.moveTo(leftX, top - 8); c.lineTo(leftX, top + (n - 1) * step + 8); c.stroke();
+    c.beginPath(); c.moveTo(rightX, top - 8); c.lineTo(rightX, top + (n - 1) * step + 8); c.stroke();
+
+    // permutation wiring: structure is visible even before interrogation
+    for (let x = 0; x < n; x++){
+      const y = data.table[x];
+      const y0 = top + x * step, y1 = top + y * step;
+      const t = env.tier({ t: "map", x, y }) || env.tier({ t: "in", x }) || env.tier({ t: "out", y });
+      const dim = env.hasSemantic && !t;
+      c.globalAlpha = dim ? .07 : t === "primary" ? 1 : t === "contributing" ? .92 : t === "context" ? .32 : .34;
+      c.strokeStyle = t === "primary" ? "#f3c969" : t === "contributing" ? "#d99b4a" : t === "context" ? "#a77f46" : "#536476";
+      c.lineWidth = (t === "primary" ? 2.2 : t === "contributing" ? 1.5 : .7) / V.z;
+      const bend = (rightX - leftX) * .34;
+      c.beginPath();
+      c.moveTo(leftX + hitR, y0);
+      c.bezierCurveTo(leftX + bend, y0, rightX - bend, y1, rightX - hitR, y1);
+      c.stroke();
+    }
+
+    // endpoint nodes and labels
+    for (let x = 0; x < n; x++){
+      const y = data.table[x], iy = top + x * step, oy = top + y * step;
+      const tMap = env.tier({ t: "map", x, y });
+      const tIn = tMap || env.tier({ t: "in", x });
+      const tOut = tMap || env.tier({ t: "out", y });
+
+      c.globalAlpha = env.hasSemantic && !tIn ? .18 : 1;
+      c.fillStyle = tIn === "primary" ? "#f3c969" : tIn === "contributing" ? "#d99b4a" : "#27323d";
+      c.strokeStyle = tIn ? "#f0c168" : "#53606d";
+      c.lineWidth = (tIn ? 1.2 : .7) / V.z;
+      c.beginPath(); c.arc(leftX, iy, hitR, 0, Math.PI * 2); c.fill(); c.stroke();
+      c.fillStyle = tIn ? "#10151b" : "#c4ced8"; c.textAlign = "center"; c.fillText(U.hex(x, 2), leftX, iy + .5);
+
+      c.globalAlpha = env.hasSemantic && !tOut ? .18 : 1;
+      c.fillStyle = tOut === "primary" ? "#f3c969" : tOut === "contributing" ? "#d99b4a" : "#27323d";
+      c.strokeStyle = tOut ? "#f0c168" : "#53606d";
+      c.beginPath(); c.arc(rightX, oy, hitR, 0, Math.PI * 2); c.fill(); c.stroke();
+      c.fillStyle = tOut ? "#10151b" : "#c4ced8"; c.fillText(U.hex(y, 2), rightX, oy + .5);
+    }
+
+    // labels sit outside the graph, leaving the permutation itself uncluttered
+    c.globalAlpha = 1; c.textAlign = "center"; c.fillStyle = "#697786"; c.font = "600 9px " + MONO;
+    c.fillText("INPUT", leftX, 5); c.fillText("OUTPUT", rightX, 5);
+
+    // pair structure supplied by the resolver, not derived here
+    if (env.hasSemantic && env.atoms){
+      c.textAlign = "left";
+      for (const { atom, tier } of env.atoms.ofType("pair")){
+        if (atom.x0 === atom.x1) continue;
+        const ay = top + atom.x0 * step, by = top + atom.x1 * step;
+        const bx = 8;
+        c.globalAlpha = tier === "context" ? .35 : .9;
+        c.strokeStyle = tier === "primary" ? "#f3c969" : "#d99b4a";
+        c.lineWidth = 1.2 / V.z;
+        c.beginPath(); c.moveTo(bx + 6, ay); c.lineTo(bx, ay); c.lineTo(bx, by); c.lineTo(bx + 6, by); c.stroke();
+      }
+    }
+    c.globalAlpha = 1; c.restore();
+  },
+  semanticHitTest(o, lp, data){
+    if (!data) return null;
+    const { n, top, leftX, step, hitR } = this.geom(o, data);
+    const idx = Math.round((lp.y - top) / step);
+    if (idx < 0 || idx >= n) return null;
+    const rowY = top + idx * step;
+    if (Math.abs(lp.y - rowY) > Math.max(hitR + 3, step * .48)) return null;
+    // clicking anywhere across an input lane selects that mapping; wire geometry is display-only
+    if (lp.x < 0 || lp.x > o.visual.w) return null;
+    return { kind: factKindOf(o), eid: o.eid, index: idx };
+  }
+};
+
+/* ---------- view.sboxGrid : S-box as a canonical 16x16 lookup table ------
+   Every one of the 256 mappings stays exactly as legible and clickable as
+   the old per-row list, but laid out the way cryptographers actually read
+   an S-box: a square hex table (row = high nibble, col = low nibble),
+   matching the sizing language of the DDT/LAT panels next to it. */
+RENDER["view.sboxGrid"] = {
+  geom(o, data){
+    const n = data ? data.n : 256;
+    const cols = Math.max(1, Math.round(Math.sqrt(n)));
+    const rows = Math.ceil(n / cols);
+    const padL = 26, padT = 24, padR = 6, padB = 6;
+    const cell = Math.max(4, Math.min((o.visual.w - padL - padR) / cols, (o.visual.h - padT - padB) / rows));
+    return { n, cols, rows, padL, padT, cell };
+  },
+  draw(c, o, data, env){
+    if (!data) return;
+    const { n, cols, rows, padL, padT, cell } = this.geom(o, data);
+    c.save();
+    c.textBaseline = "middle";
+
+    // hex nibble headers
+    c.globalAlpha = .6; c.fillStyle = "#697786"; c.font = "8px " + MONO;
+    c.textAlign = "center";
+    for (let col = 0; col < cols; col++) c.fillText(U.hex(col, 1), padL + col * cell + cell / 2, padT - 10);
+    c.textAlign = "right";
+    for (let r = 0; r < rows; r++) c.fillText(U.hex(r, 1), padL - 6, padT + r * cell + cell / 2);
+
+    for (let x = 0; x < n; x++){
+      const r = Math.floor(x / cols), col = x % cols;
+      const y = data.table[x];
+      const cx = padL + col * cell, cy = padT + r * cell;
+      const t = env.tier({ t: "map", x, y }) || env.tier({ t: "in", x }) || env.tier({ t: "out", y });
+      const dim = env.hasSemantic && !t;
+
+      c.globalAlpha = 1;
+      c.fillStyle = (r % 2 === 0) ? "#141a21" : "#121820";
+      c.fillRect(cx, cy, cell, cell);
+
+      if (t){
+        c.globalAlpha = dim ? 0 : t === "primary" ? 1 : t === "contributing" ? .82 : .4;
+        c.fillStyle = t === "primary" ? "rgba(243,201,105,.30)"
+                    : t === "contributing" ? "rgba(217,155,74,.24)"
+                    : "rgba(167,127,70,.16)";
+        c.fillRect(cx, cy, cell, cell);
+      }
+
+      c.globalAlpha = dim ? .25 : .55;
+      c.strokeStyle = "rgba(83,100,118,.4)"; c.lineWidth = .6 / V.z;
+      c.strokeRect(cx + .5, cy + .5, cell - 1, cell - 1);
+
+      if (t === "primary"){
+        c.globalAlpha = 1; c.strokeStyle = "#ffd166"; c.lineWidth = Math.max(1.3, 1.8 / V.z);
+        c.strokeRect(cx + 1, cy + 1, cell - 2, cell - 2);
+      }
+
+      if (cell > 12){
+        c.globalAlpha = dim ? .3 : 1;
+        c.fillStyle = t === "primary" ? "#fbe2a0" : t === "contributing" ? "#ecc386" : dim ? "#4c5762" : "#c3ccd6";
+        c.font = (cell > 22 ? "600 10px " : "8px ") + MONO;
+        c.textAlign = "center";
+        c.fillText(U.hex(y, 2), cx + cell / 2, cy + cell / 2 + .5);
+      }
+    }
+
+    // paired indices (fixed points, related mappings) get a matching outline
+    // on both cells rather than a wire, since a grid has no shared column.
+    if (env.hasSemantic && env.atoms){
+      for (const { atom, tier } of env.atoms.ofType("pair")){
+        if (atom.x0 === atom.x1) continue;
+        const mark = idx => {
+          const r = Math.floor(idx / cols), col = idx % cols;
+          const cx = padL + col * cell, cy = padT + r * cell;
+          c.globalAlpha = tier === "context" ? .4 : .9;
+          c.strokeStyle = tier === "primary" ? "#f3c969" : "#d99b4a";
+          c.lineWidth = Math.max(1.1, 1.6 / V.z);
+          c.strokeRect(cx + 1.5, cy + 1.5, cell - 3, cell - 3);
+        };
+        mark(atom.x0); mark(atom.x1);
+      }
+    }
+    c.globalAlpha = 1; c.restore();
+  },
+  semanticHitTest(o, lp, data){
+    if (!data) return null;
+    const { n, cols, rows, padL, padT, cell } = this.geom(o, data);
+    const col = Math.floor((lp.x - padL) / cell), r = Math.floor((lp.y - padT) / cell);
+    if (col < 0 || r < 0 || col >= cols || r >= rows) return null;
+    const idx = r * cols + col;
+    if (idx >= n) return null;
+    return { kind: factKindOf(o), eid: o.eid, index: idx };
+  }
+};
+
+/* ---------- view.bitgrid : input bit -> output bit influence -------------- */
+RENDER["view.bitgrid"] = {
+  geom(o, data){ const pad = 26, b = data ? data.b : 4; return { pad, b, cell: (o.visual.w - pad - 8) / b }; },
+  draw(c, o, data, env){
+    if (!data) return;
+    const { pad, b, cell } = this.geom(o, data);
+    c.save(); c.font = "9px " + MONO; c.textBaseline = "middle"; c.textAlign = "center";
+    for (let i = 0; i < b; i++){
+      for (let j = 0; j < b; j++){
+        const v = data.m[i * b + j], dev = Math.abs(v - data.ideal) / data.ideal;
+        const t = env.tier({ t: "bitPair", i, j });
+        c.globalAlpha = env.hasSemantic && !t ? .22 : 1;
+        const g = Math.round(30 + 70 * (1 - dev));
+        c.fillStyle = t === "primary" ? "rgba(255,209,102,.4)"
+                    : t === "contributing" ? "rgba(224,145,44,.3)"
+                    : t === "context" ? "rgba(255,193,71,.12)" : `rgb(${g - 12},${g},${g + 14})`;
+        c.fillRect(pad + j * cell, pad + i * cell, cell - 1, cell - 1);
+        c.fillStyle = t ? "#ffe6ab" : "#8698a9";
+        c.fillText(v, pad + j * cell + cell / 2, pad + i * cell + cell / 2);
+      }
+      c.globalAlpha = 1;
+      c.fillStyle = env.tier({ t: "bitIn", i }) ? "#ffd166" : "#556676";
+      c.fillText("i" + i, pad / 2 + 2, pad + i * cell + cell / 2);
+      c.fillStyle = env.tier({ t: "bitOut", j: i }) ? "#ffd166" : "#556676";
+      c.fillText("o" + i, pad + i * cell + cell / 2, pad / 2 + 4);
+    }
+    c.textAlign = "left"; c.restore();
+  },
+  semanticHitTest(o, lp, data){
+    if (!data) return null;
+    const { pad, b, cell } = this.geom(o, data);
+    const j = Math.floor((lp.x - pad) / cell), i = Math.floor((lp.y - pad) / cell);
+    if (i < 0 || j < 0 || i >= b || j >= b) return null;
+    return { kind: factKindOf(o), eid: o.eid, row: i, col: j };
+  }
+};
+
+
+/* ---------- view.spectrum : 1-D Walsh spectrum --------------------------- */
+RENDER["view.spectrum"] = {
+  geom(o, data){
+    const padL = 30, padB = 16, n = data ? data.n : 1;
+    return { padL, padB, n, bw: (o.visual.w - padL - 6) / n,
+             h: o.visual.h - padB - 8, mid: (o.visual.h - padB - 8) / 2 + 4 };
+  },
+  draw(c, o, data, env){
+    if (!data) return;
+    const { padL, n, bw, h, mid } = this.geom(o, data);
+    const scale = data.maxAbs ? (h / 2 - 4) / data.maxAbs : 0;
+    c.save();
+    c.globalAlpha = env.hasSemantic && !env.tier({ t: "object", eid: o.eid }) ? .3 : 1;
+    c.strokeStyle = "#212c38"; c.lineWidth = 1 / V.z;
+    c.beginPath(); c.moveTo(padL, mid); c.lineTo(padL + n * bw, mid); c.stroke();
+
+    // base spectrum in one pass
+    c.fillStyle = "#3d5266";
+    for (let a = 0; a < n; a++){
+      const v = data.w[a] * scale;
+      if (!v) continue;
+      c.fillRect(padL + a * bw, mid - Math.max(v, 0), Math.max(bw - .4, .6), Math.abs(v));
+    }
+    // extrema always visible, even when a bar is sub-pixel
+    c.fillStyle = "#7fa8c9";
+    for (let a = 0; a < n; a++){
+      if (Math.abs(data.w[a]) !== data.maxAbs) continue;
+      const v = data.w[a] * scale;
+      c.fillRect(padL + a * bw, mid - Math.max(v, 0), Math.max(bw - .4, 1.2), Math.abs(v));
+    }
+    // Exact match requires both Walsh component b and input mask a.
+    if (env.hasSemantic){
+      for (let a = 0; a < n; a++){
+        const tier = env.tier({ t: "walsh", b: data.component, a });
+        if (!tier) continue;
+        const v = data.w[a] * scale;
+        c.fillStyle = tier === "primary" ? "#ffd166" : tier === "contributing" ? "#e0912c" : "rgba(255,193,71,.4)";
+        c.fillRect(padL + a * bw - .5, mid - Math.max(v, 0), Math.max(bw + 1, 2), Math.abs(v) || 1.5);
+      }
+    }
+    c.globalAlpha = 1;
+    c.fillStyle = "#556676"; c.font = "9px " + MONO; c.textBaseline = "middle";
+    c.fillText("+" + data.maxAbs, 2, mid - h / 2 + 6);
+    c.fillText("-" + data.maxAbs, 2, mid + h / 2 - 6);
+    c.fillText("component b = " + U.hex(data.component, 2), padL, o.visual.h - 6);
+    if (n === 256){
+      c.font = "8px " + MONO;
+      c.fillStyle = "#5f6d7b";
+      c.textAlign = "center";
+      for (let a = 0; a < n; a += 16){
+        const x = padL + (a + 8) * bw;
+        c.fillText(U.hex(a,2), x, o.visual.h - 18);
+      }
+      c.textAlign = "left";
+    }
+    c.restore();
+  },
+  semanticHitTest(o, lp, data){
+    if (!data) return null;
+    const { padL, n, bw } = this.geom(o, data);
+    const a = Math.floor((lp.x - padL) / bw);
+    if (a < 0 || a >= n) return null;
+    return { kind: factKindOf(o), eid: o.eid, index: a };
+  }
+};
+
+/* ---------- view.walshAncestry : compact FWHT partial-sum trace ---------- */
+RENDER["view.walshAncestry"] = {
+  activeMask(o, data, env){
+    if (env.atoms){
+      const hits = env.atoms.ofType("walsh");
+      for (const { atom } of hits) if (atom.b === data.component && atom.a >= 0 && atom.a < data.n) return atom.a;
+    }
+    return data.defaultMask;
+  },
+  geom(o, data){
+    const top = 26, bottom = 20;
+    const rowH = (o.visual.h - top - bottom) / Math.max(1, data ? data.bits : 8);
+    return { top, rowH, xL: 88, xR: Math.round(o.visual.w * .42), xO: Math.round(o.visual.w * .72) };
+  },
+  draw(c, o, data, env){
+    if (!data) return;
+    const a = this.activeMask(o, data, env), rows = data.ancestry[a] || [];
+    const { top, rowH, xL, xR, xO } = this.geom(o, data);
+    c.save(); c.font = "9px " + MONO; c.textBaseline = "middle";
+    const objectTier = env.tier({ t:"object", eid:o.eid });
+    const walshTier = env.tier({ t:"walsh", b:data.component, a });
+    c.globalAlpha = env.hasSemantic && !objectTier && !walshTier ? .32 : 1;
+    c.fillStyle = "#718090";
+    c.fillText(`component b=${U.hex(data.component,2)}   mask a=${U.hex(a,2)}   W=${data.w[a]}`, 8, 10);
+    c.fillStyle = "#536271"; c.fillText("partial A", xL, 22); c.fillText("partial B", xR, 22); c.fillText("result", xO, 22);
+    for (let k = 0; k < rows.length; k++){
+      const r = rows[k], y = top + k * rowH + rowH * .5;
+      const t = env.tier({ t:"walshStage", b:data.component, a, k }) || walshTier;
+      const active = !!t; c.globalAlpha = env.hasSemantic && !active ? .18 : 1;
+      c.strokeStyle = active ? (t === "primary" ? "#f3c969" : "#d99b4a") : "#3b4855";
+      c.fillStyle = active ? "rgba(243,201,105,.13)" : "#161c23";
+      c.lineWidth = (t === "primary" ? 1.5 : .8) / V.z;
+      const boxW = Math.max(48, Math.min(78, (o.visual.w - 40) * .22)), boxH = Math.min(24, rowH - 5), by = y - boxH / 2;
+      for (const [x, value] of [[xL,r.left],[xR,r.right],[xO,r.result]]){
+        c.fillRect(x,by,boxW,boxH); c.strokeRect(x+.5,by+.5,boxW-1,boxH-1);
+        c.fillStyle = active ? "#f3d79a" : "#b8c3ce"; c.textAlign="center"; c.fillText(String(value),x+boxW/2,y);
+        c.fillStyle = active ? "rgba(243,201,105,.13)" : "#161c23";
+      }
+      c.fillStyle = active ? "#f3c969" : "#748291"; c.font="600 12px "+MONO; c.fillText(r.branch === "sum" ? "+" : "−",xR-18,y);
+      c.font="9px "+MONO; c.textAlign="left"; c.fillStyle=active ? "#d9b765" : "#62707e"; c.fillText(`s${k+1}  b${r.bit}`,8,y);
+      c.strokeStyle=active ? "#a9874c" : "#33404c"; c.beginPath(); c.moveTo(xL+boxW,y); c.lineTo(xR-22,y); c.moveTo(xR+boxW,y); c.lineTo(xO-6,y); c.stroke();
+    }
+    c.globalAlpha=1; c.textAlign="left"; c.fillStyle="#667482"; c.fillText("Click a spectrum bar to retarget this trace.",8,o.visual.h-7); c.restore();
+  },
+  semanticHitTest(o, lp, data){
+    if (!data) return null;
+    const { top, rowH } = this.geom(o, data), stage=Math.floor((lp.y-top)/rowH);
+    if (stage < 0 || stage >= data.bits) return null;
+    return { kind:"walsh-ancestry-stage", eid:o.eid, stage, mask:data.defaultMask };
+  }
+};
+
+/* ---------- view.anf : monomials by degree ------------------------------- */
+RENDER["view.anf"] = {
+  geom(o, data){
+    const cols = 16, n = data ? data.n : 16;
+    return { cols, rows: Math.ceil(n / cols),
+             cw: (o.visual.w - 8) / cols, ch: (o.visual.h - 24) / Math.ceil(n / cols) };
+  },
+  draw(c, o, data, env){
+    if (!data) return;
+    const { cols, cw, ch } = this.geom(o, data);
+    c.save();
+    c.globalAlpha = env.hasSemantic && !env.tier({ t: "object", eid: o.eid }) ? .3 : 1;
+    for (let m = 0; m < data.n; m++){
+      const present = data.coeff[m] !== 0;
+      const deg = popcountDisplay(m);
+      const x = (m % cols) * cw + 4, y = Math.floor(m / cols) * ch + 20;
+      const g = present ? 40 + Math.round(190 * deg / Math.max(1, data.degree)) : 22;
+      c.fillStyle = present ? `rgb(${g - 10},${Math.round(g * .72)},${Math.round(g * .45)})` : "#141a22";
+      c.fillRect(x, y, cw - 1, ch - 1);
+    }
+    if (env.hasSemantic && env.atoms){
+      for (const { atom, tier } of env.atoms.ofType("mono")){
+        const m = atom.m; if (m < 0 || m >= data.n) continue;
+        const x = (m % cols) * cw + 4, y = Math.floor(m / cols) * ch + 20;
+        c.fillStyle = tier === "primary" ? "#ffd166" : tier === "contributing" ? "#e0912c" : "rgba(255,193,71,.3)";
+        c.fillRect(x, y, cw - 1, ch - 1);
+      }
+    }
+    c.globalAlpha = 1;
+    c.fillStyle = "#556676"; c.font = "9px " + MONO; c.textBaseline = "middle";
+    c.fillText(`degree ${data.degree}   ${data.terms} terms`, 4, 10);
+    c.restore();
+  },
+  semanticHitTest(o, lp, data){
+    if (!data) return null;
+    const { cols, cw, ch } = this.geom(o, data);
+    const cx = Math.floor((lp.x - 4) / cw), cy = Math.floor((lp.y - 20) / ch);
+    const m = cy * cols + cx;
+    if (cx < 0 || cx >= cols || m < 0 || m >= data.n) return null;
+    return { kind: factKindOf(o), eid: o.eid, index: m };
+  }
+};
+/** Local bit count for display only. The renderer must not import the kernel,
+ *  and a Hamming weight for a grid cell is layout, not cryptography. */
+function popcountDisplay(v){ let c = 0; while (v){ v &= v - 1; c++; } return c; }
+
+
+/* ---------- view.aesDerivation : zoom through AES S-box construction ------ */
+RENDER["view.aesDerivation"] = {
+  geom(o, data){
+    const top = 12, rowH = data ? Math.max(38, (o.visual.h - 24) / data.stages.length) : 42;
+    return { top, rowH, bitX: 156, bitW: Math.max(10, (o.visual.w - 170) / 8) };
+  },
+  draw(c, o, data, env){
+    if (!data) return;
+    const { top, rowH, bitX, bitW } = this.geom(o, data);
+    c.save(); c.font = "9px " + MONO; c.textBaseline = "middle";
+    c.fillStyle = "#708090"; c.fillText("GF(2^8) modulus  " + data.modulusRepr.polynomial, 8, 6);
+    for (let k = 0; k < data.stages.length; k++){
+      const st = data.stages[k], y = top + k * rowH;
+      const t = env.tier({ t: "fieldStep", eid: o.eid, k }) || env.tier({ t: "fieldElem", value: st.value });
+      c.globalAlpha = env.hasSemantic && !t ? .24 : 1;
+      c.fillStyle = t === "primary" ? "rgba(243,201,105,.18)" : t === "contributing" ? "rgba(217,155,74,.12)" : "#151b22";
+      c.strokeStyle = t === "primary" ? "#f3c969" : "#303b47";
+      c.lineWidth = (t === "primary" ? 1.4 : .7) / V.z;
+      c.fillRect(6, y, o.visual.w - 12, rowH - 5); c.strokeRect(6.5, y + .5, o.visual.w - 13, rowH - 6);
+      c.fillStyle = t ? "#f3c969" : "#9aa6b3"; c.fillText(st.label, 12, y + 11);
+      c.fillStyle = "#e6ecf2"; c.font = "600 12px " + MONO; c.fillText(st.repr.hex, 12, y + 27); c.font = "9px " + MONO;
+      for (let bi = 0; bi < 8; bi++){
+        const bitIndex = 7 - bi, bx = bitX + bi * bitW;
+        const bt = env.tier({ t: "fieldBit", i: bitIndex }) || env.tier({ t: "fieldTerm", e: bitIndex });
+        c.fillStyle = bt ? (bt === "primary" ? "#f3c969" : "#d99b4a") : st.repr.bits[bi] ? "#49657d" : "#202933";
+        c.fillRect(bx, y + 8, bitW - 2, 14);
+        c.fillStyle = bt ? "#12171d" : "#d5dde6"; c.textAlign = "center"; c.fillText(st.repr.bits[bi], bx + (bitW - 2)/2, y + 15);
+      }
+      c.textAlign = "left"; c.fillStyle = "#718090"; c.fillText(st.repr.polynomial, bitX, y + 30);
+      if (k < data.stages.length - 1){ c.strokeStyle = "#3d4a57"; c.beginPath(); c.moveTo(22, y + rowH - 5); c.lineTo(22, y + rowH); c.stroke(); }
+    }
+    c.globalAlpha = 1;
+    c.fillStyle = data.matchesSource === false ? "#e37b75" : "#5fc39a";
+    c.fillText(data.matchesSource === false ? "candidate differs from SBOX-01" : "matches SBOX-01", 8, o.visual.h - 5);
+    c.restore();
+  },
+  semanticHitTest(o, lp, data){
+    if (!data) return null;
+    const { top, rowH, bitX, bitW } = this.geom(o, data);
+    const k = Math.floor((lp.y - top) / rowH);
+    if (k < 0 || k >= data.stages.length) return null;
+    if (lp.x >= bitX && lp.x < bitX + bitW * 8 && lp.y <= top + k * rowH + 24){
+      const bi = Math.floor((lp.x - bitX) / bitW);
+      return { kind: "field-bit", eid: o.eid, index: 7 - bi, slot: "a" };
+    }
+    return { kind: "aes-stage", eid: o.eid, index: k };
+  }
+};
+
+/* ---------- view.fieldMicroscope : exact shift/XOR/reduction trace -------- */
+RENDER["view.fieldMicroscope"] = {
+  geom(o, data){
+    const top = 54, headH = 44, rowH = data ? Math.max(30, (o.visual.h - top - headH - 28) / Math.max(1, data.steps.length)) : 34;
+    return { top, headH, rowH, bitX: 104, bitW: Math.max(11, (o.visual.w - 118) / (data ? data.bits : 8)) };
+  },
+  drawBits(c, repr, x, y, bitW, env){
+    const W = repr.width || repr.bits.length;      // was hardcoded to 8
+    for (let bi = 0; bi < W; bi++){
+      const idx = W - 1 - bi, t = env.tier({ t: "fieldBit", i: idx }) || env.tier({ t: "fieldTerm", e: idx });
+      c.fillStyle = t ? (t === "primary" ? "#f3c969" : "#d99b4a") : repr.bits[bi] ? "#45647e" : "#1e2731";
+      c.fillRect(x + bi * bitW, y, bitW - 2, 14);
+      c.fillStyle = t ? "#10151b" : "#d8e0e8"; c.textAlign = "center"; c.fillText(repr.bits[bi], x + bi * bitW + (bitW - 2)/2, y + 7);
+    }
+    c.textAlign = "left";
+  },
+  draw(c, o, data, env){
+    if (!data) return;
+    const { top, headH, rowH, bitX, bitW } = this.geom(o, data);
+    c.save(); c.font = "9px " + MONO; c.textBaseline = "middle";
+    const heads = [["a", data.aRepr, 6], ["b", data.bRepr, 27]];
+    for (const [slot, repr, y] of heads){
+      const t = env.tier({ t: "fieldElem", value: repr.value });
+      c.fillStyle = t ? "#f3c969" : "#dce4ec"; c.font = "600 11px " + MONO; c.fillText(slot.toUpperCase()+"  "+repr.hex, 8, y+7); c.font = "9px " + MONO;
+      this.drawBits(c, repr, bitX, y, bitW, env);
+      c.fillStyle = "#738190"; c.fillText(repr.polynomial, bitX, y + 23);
+    }
+    c.fillStyle = "#657586"; c.fillText(`multiply in GF(2^${data.bits}) modulo ` + data.modulusRepr.polynomial, 8, top - 7);
+    for (let k = 0; k < data.steps.length; k++){
+      const st = data.steps[k], y = top + k * rowH;
+      const t = env.tier({ t: "fieldStep", eid: o.eid, k });
+      c.globalAlpha = env.hasSemantic && !t && !env.tier({ t: "fieldElem", value: st.before }) ? .22 : 1;
+      c.fillStyle = t === "primary" ? "rgba(243,201,105,.17)" : st.reduced ? "rgba(99,174,232,.08)" : "#151b22";
+      c.fillRect(6, y, o.visual.w - 12, rowH - 3);
+      c.fillStyle = t ? "#f3c969" : "#8896a5";
+      c.fillText(String(k).padStart(2,"0") + (st.took ? "  XOR" : "  shift"), 10, y + rowH/2);
+      c.fillStyle = "#cfd8e1"; c.fillText("a=" + st.addendRepr.hex, 75, y + rowH/2);
+      c.fillText("acc=" + st.accRepr.hex, 143, y + rowH/2);
+      // On a reducing step show the overflowed product, not just its result:
+      // raw (degree n) -> XOR modulus -> shifted (degree < n).
+      if (st.reduced){
+        c.fillStyle = "#63aee8";
+        c.fillText(st.rawRepr.hex + " \u2295 " + data.modulusRepr.hex, 208, y + rowH/2);
+        c.fillStyle = "#cfd8e1";
+        c.fillText("= " + st.shiftedRepr.hex, o.visual.w - 60, y + rowH/2);
+      } else {
+        c.fillText("next=" + st.shiftedRepr.hex, 220, y + rowH/2);
+      }
+    }
+    c.globalAlpha = 1;
+    const ry = top + data.steps.length * rowH + 5;
+    c.fillStyle = env.tier({ t: "fieldElem", value: data.result }) ? "#f3c969" : "#5fc39a";
+    c.font = "600 11px " + MONO; c.fillText("RESULT  " + data.resultRepr.hex, 8, ry + 9); c.font = "9px " + MONO;
+    this.drawBits(c, data.resultRepr, bitX, ry + 2, bitW, env);
+    c.fillStyle = "#738190"; c.fillText(data.resultRepr.polynomial, bitX, ry + 24);
+    c.restore();
+  },
+  semanticHitTest(o, lp, data){
+    if (!data) return null;
+    const { top, rowH, bitX, bitW } = this.geom(o, data);
+    if (lp.y >= 6 && lp.y < 24){
+      if (lp.x >= bitX && lp.x < bitX + bitW * 8) return { kind:"field-bit", eid:o.eid, index:7-Math.floor((lp.x-bitX)/bitW), slot:"a" };
+      return { kind:"field-element", eid:o.eid, slot:"a" };
+    }
+    if (lp.y >= 27 && lp.y < 48){
+      if (lp.x >= bitX && lp.x < bitX + bitW * 8) return { kind:"field-bit", eid:o.eid, index:7-Math.floor((lp.x-bitX)/bitW), slot:"b" };
+      return { kind:"field-element", eid:o.eid, slot:"b" };
+    }
+    const k = Math.floor((lp.y - top) / rowH);
+    if (k >= 0 && k < data.steps.length) return { kind:"field-step", eid:o.eid, index:k };
+    const ry = top + data.steps.length * rowH + 5;
+    if (lp.y >= ry && lp.y <= o.visual.h) return { kind:"field-element", eid:o.eid, slot:"result" };
+    return null;
+  }
+};
+
+/* ---------- annotation.note ----------------------------------------------- */
+RENDER["annotation.note"] = {
+  draw(c, n, _d, env){
+    const t = env.tier({ t: "note", eid: n.eid });
+    c.globalAlpha = env.hasSemantic && !t ? .25 : 1;
+    c.fillStyle = t ? "rgba(255,193,71,.14)" : "rgba(24,32,41,.9)";
+    c.strokeStyle = t === "primary" ? "#ffd166" : t ? "#e0912c" : "#2d3a49";
+    c.lineWidth = 1 / V.z;
+    c.beginPath();
+    c.roundRect ? c.roundRect(0, 0, n.visual.w, n.visual.h, 3) : c.rect(0, 0, n.visual.w, n.visual.h);
+    c.fill(); c.stroke();
+    c.fillStyle = t ? "#ffe6ab" : "#8698a9";
+    c.font = "10px " + MONO; c.textBaseline = "top";
+    wrap(c, n.text, 9, 9, n.visual.w - 18, 13);
+    c.globalAlpha = 1;
+  },
+  semanticHitTest(n){ return { kind: "note", eid: n.eid }; }
+};
+function wrap(c, text, x, y, maxw, lh){
+  const words = String(text).split(" ");
+  let line = "", yy = y;
+  for (const w of words){
+    if (c.measureText(line + w).width > maxw && line){ c.fillText(line, x, yy); line = ""; yy += lh; }
+    line += w + " ";
+  }
+  c.fillText(line, x, yy);
+}
+//#endregion
+
+//#region 13 HIT TEST / SELECTION
+function hitObject(wp){
+  const all = S.doc.objects.concat(S.doc.annotations);
+  for (let i = all.length - 1; i >= 0; i--){
+    const o = all[i], v = o.visual;
+    if (wp.x >= v.x && wp.x <= v.x + v.w && wp.y >= v.y - 22 && wp.y <= v.y + v.h) return o;
+  }
+  return null;
+}
+function pickSemantic(wp){
+  const o = hitObject(wp);
+  if (!o) return null;
+  const R = RENDER[o.visual.renderer || "annotation.note"];
+  if (!R || !R.semanticHitTest) return { kind: "object", eid: o.eid };
+  const lp = { x: wp.x - o.visual.x, y: wp.y - o.visual.y };
+  return R.semanticHitTest(o, lp, COMPUTED.get(o.eid)) || { kind: "object", eid: o.eid };
+}
+//#endregion
+
+//#region 14 HIGHLIGHT SYSTEM
+/* Tier is carried on the atom (region 07). Dimming is a renderer fallback and
+   is deliberately never broadcast - see region 12 `env.hasSemantic && !t`. */
+bus.on("semantic-select", () => { paintTrace(); paintObj(); paintUnderstand(); });
+bus.on("semantic-clear",  () => { paintTrace(); paintObj(); paintUnderstand(); });
+//#endregion
+
+//#region 15 ANNOTATION
+function makeNote(text, links, visual){
+  return {
+    eid: nextEid("NOTE"),
+    kind: "annotation.note",
+    text: safeStr(text),
+    links: (links || []).slice(0, 64),
+    visual: Object.assign({ x: 0, y: 0, w: 200, h: 70, renderer: "annotation.note" }, visual)
+  };
+}
+//#endregion
+
+//#region 16 LAYERS / STYLES
+/* Minimal for 0.0. Semantic style classes land in 0.1. */
+S.doc.layers = [{ id: "base", name: "Base", visible: true, locked: false }];
+//#endregion
+
+//#region 17 INSPECTOR
+function paintObj(){
+  const eid = [...S.selection][0];
+  const o = eid ? getObj(eid) : null;
+  const el = document.getElementById("objkv");
+  if (!o){ el.innerHTML = '<span class="empty">Nothing selected.<br>Click any cell to resolve it.</span>'; return; }
+  const d = COMPUTED.get(o.eid);
+  const err = S.computation.errors && S.computation.errors.get(o.eid);
+  const rows = [
+    ["eid", o.eid], ["type", o.type], ["rev", o.revision], ["hash", defHash(o)]
+  ];
+  if (err) rows.push(["compute state", err.blockedBy ? `BLOCKED by ${err.blockedBy}` : "ERROR"], ["message", err.message || "computation failed"]);
+  if (d && d.bits != null) rows.push(
+    ["bits", `${d.bits} \u2192 ${d.bits}`],
+    ["bijective", d.bijective ? "yes" : "no"],
+    ["fixed points", d.fixedPoints],
+    ["opposite fixed", d.oppositeFixedPoints]);
+  if (d && d.uniformity != null) rows.push(
+    ["diff. uniformity", d.uniformity],
+    ["best probability", d.bestProb.text],
+    ["distinct values", d.distinct.join(" ")]);
+  if (d && d.nonlinearity != null && d.kind === "lat") rows.push(
+    ["max |LAT|", d.maxAbs],
+    ["nonlinearity", d.nonlinearity],
+    ["best bias", d.bestBias.text]);
+  if (d && d.kind === "walsh") rows.push(
+    ["component", "0x" + U.hex(d.component, 2)],
+    ["max |W|", d.maxAbs],
+    ["nonlinearity", d.nonlinearity],
+    ["balanced", d.balanced ? "yes" : "no"],
+    ["correlation immunity", d.correlationImmunity < 0 ? "none" : d.correlationImmunity]);
+  if (d && d.kind === "walsh-ancestry") rows.push(
+    ["component", "0x" + U.hex(d.component, 2)],
+    ["default mask", "0x" + U.hex(d.defaultMask, 2)],
+    ["FWHT stages", d.bits]);
+  if (d && d.kind === "anf") rows.push(
+    ["algebraic degree", d.degree],
+    ["monomials", d.terms],
+    ["terms by degree", [...d.byDegree].map((v, i) => `${i}:${v}`).join(" ")]);
+  if (d && d.maxDeviation != null) rows.push(["max SAC deviation", d.maxDeviation]);
+  if (d && d.construction) rows.push(["construction", d.construction]);
+  if (d && d.ideal != null) rows.push(["ideal SAC", d.ideal]);
+  if (d && d.inverse != null) rows.push(["input", U.hex(d.input,2)], ["GF inverse", U.hex(d.inverse,2)], ["AES output", U.hex(d.output,2)], ["matches source", d.matchesSource ? "yes" : "NO"]);
+  if (d && d.result != null && d.a != null) rows.push(["multiply", `${U.hex(d.a,2)} × ${U.hex(d.b,2)}`], ["result", U.hex(d.result,2)], ["steps", d.steps.length]);
+  if (o.provenance && o.provenance.forkedFrom) rows.push(["forked from", o.provenance.forkedFrom]);
+  rows.push(["sources", sourcesOf(o.eid).join(" ") || "\u2014"]);
+  rows.push(["dependents", dependentsOf(o.eid).join(" ") || "\u2014"]);
+  el.innerHTML = rows.map(([k, v]) => `<b>${esc(k)}</b><i>${esc(v)}</i>`).join("");
+}
+function esc(s){ return String(s).replace(/[&<>"]/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[m])); }
+
+/* signature element: live atom trace makes the architecture visible */
+function paintTrace(){
+  const body = document.getElementById("tracebody");
+  const tc = document.getElementById("tiercount");
+  const modeBtn=document.getElementById("traceModeBtn");
+  if(modeBtn) modeBtn.textContent=traceMode==="readable"?"Readable":"Technical";
+  if(traceMode==="readable"){
+    body.innerHTML=readableTrace();
+    if(!S.semantic){tc.innerHTML="";return;}
+    const c=S.semantic.counts(); tc.innerHTML=`<i class="p">${c.primary}P</i><i class="c">${c.contributing}C</i><i>${c.context}x</i>`;
+    return;
+  }
+  if (!S.semantic){
+    body.innerHTML = '<div class="empty">No semantic selection.<br><br>Click a structure to inspect the exact atom set.</div>';
+    tc.innerHTML = ""; return;
+  }
+  const c = S.semantic.counts();
+  tc.innerHTML = `<i class="p">${c.primary}P</i><i class="c">${c.contributing}C</i><i>${c.context}x</i>`;
+  const list = S.semantic.list().slice(0, 120);
+  body.innerHTML = list.map(({ atom, tier }) => {
+    const keys = ATOM_TYPES[atom.t];
+    const vals = keys.map(k => `${k}=${typeof atom[k] === "number" ? "0x" + U.hex(atom[k]) : atom[k]}`).join(" ");
+    return `<div class="atom ${tier}"><div class="bar"></div><div><span class="t">${atom.t}</span> <span class="v">${esc(vals)}</span></div></div>`;
+  }).join("") + (S.semantic.size > 120 ? `<div class="empty">+${S.semantic.size - 120} more</div>` : "");
+}
+function paintDeps(){
+  const roots = S.doc.objects.filter(o => !S.doc.relations.some(r => r.to === o.eid));
+  const lines = [];
+  const walk = (eid, prefix, seen) => {
+    if (seen.has(eid)){ lines.push(prefix + eid + " [cycle]"); return; }
+    const nextSeen = new Set(seen); nextSeen.add(eid);
+    const rels = S.doc.relations.filter(r => r.from === eid);
+    rels.forEach((r, i) => {
+      const last = i === rels.length - 1;
+      lines.push(prefix + (last ? "└─ " : "├─ ") + `[${r.kind}] ` + r.to);
+      walk(r.to, prefix + (last ? "   " : "│  "), nextSeen);
+    });
+  };
+  for (const root of roots){ lines.push(root.eid); walk(root.eid, "", new Set()); }
+  document.getElementById("depview").textContent = lines.join("\n");
+}
+//#endregion
+
+//#region 18 COMMAND SYSTEM
+/* I5: allow-listed dispatch only. No eval, no new Function, ever. */
+const COMMANDS = Object.create(null);
+COMMANDS.help  = () => say("set <x> <y> | aes <x> | mul <a> <b> | walsh <a> [b] | fit | clear | perturb | test | undo | redo | save");
+COMMANDS.fit   = () => zoomExtents();
+COMMANDS.clear = () => { clearSemantic(); S.selection.clear(); paintObj(); say("cleared"); };
+COMMANDS.test  = () => runSelfTests();
+COMMANDS.undo  = () => undo();
+COMMANDS.redo  = () => redo();
+COMMANDS.save  = () => saveDoc();
+COMMANDS.perturb = () => perturb();
+COMMANDS.aes = (x) => {
+  const o = getObj("AESDER-01"); if (!o) return say("no AES derivation object");
+  const v = parseInt(x, 16); if (!(v >= 0 && v <= 255)) return say("aes <00-ff>");
+  snapshot(`inspect AES ${U.hex(v,2)}`); o.definition.input = v; o.revision++; markDirty(o.eid); recomputeAll(); clearSemantic(); S.selection.clear(); S.selection.add(o.eid); paintObj(); paintUnderstand(); requestDraw(); say(`AES derivation input ${U.hex(v,2)}`);
+};
+COMMANDS.mul = (a, b) => {
+  const o = getObj("GFMUL-01"); if (!o) return say("no field microscope");
+  const av = parseInt(a,16), bv = parseInt(b,16); if (!(av>=0&&av<=255&&bv>=0&&bv<=255)) return say("mul <00-ff> <00-ff>");
+  snapshot(`GF mul ${U.hex(av,2)} ${U.hex(bv,2)}`); o.definition.a=av; o.definition.b=bv; o.revision++; markDirty(o.eid); recomputeAll(); clearSemantic(); S.selection.clear(); S.selection.add(o.eid); paintObj(); paintUnderstand(); requestDraw(); say(`GF(2^8) ${U.hex(av,2)} × ${U.hex(bv,2)} = ${U.hex(COMPUTED.get(o.eid).result,2)}`);
+};
+COMMANDS.walsh = (a, b) => {
+  const anc=getObj("WANC-01"), wal=getObj("WALSH-01"); if (!anc || !wal) return say("no Walsh ancestry object");
+  const av=parseInt(a,16), bv=b==null ? wal.definition.component : parseInt(b,16);
+  if (!(av>=0&&av<256&&bv>=1&&bv<256)) return say("walsh <mask 00-ff> [component 01-ff]");
+  snapshot(`Walsh ancestry a=${U.hex(av,2)} b=${U.hex(bv,2)}`);
+  if (wal.definition.component!==bv){ wal.definition.component=bv; wal.revision++; markDirty(wal.eid); }
+  anc.definition.mask=av; anc.revision++; markDirty(anc.eid); recomputeAll(); clearSemantic(); S.selection.clear(); S.selection.add(anc.eid); paintObj(); paintUnderstand(); requestDraw();
+  say(`Walsh ancestry component ${U.hex(bv,2)}, mask ${U.hex(av,2)}`);
+};
+COMMANDS.set = (a, b) => {
+  const sb = getObj("SBOX-01"); if (!sb) return say("no S-box");
+  const n = 1 << sb.definition.bits;
+  const forked = materialise(sb);
+  const x = parseInt(a, 16), y = parseInt(b, 16);
+  if (!(x >= 0 && x < n && y >= 0 && y < n)) return say("set <x-hex> <y-hex> in range");
+  snapshot(`set S(${U.hex(x)})`);
+  sb.definition.table[x] = y; sb.revision++;
+  markDirty(sb.eid); recomputeAll();
+  say(`S(${U.hex(x, 2)}) = ${U.hex(y, 2)}` + (forked ? "  \u2014 forked from the AES construction" : ""));
+  clearSemantic(); paintObj(); requestDraw();
+};
+function runCommand(line){
+  const parts = String(line).trim().split(/\s+/);
+  const fn = COMMANDS[parts[0].toLowerCase()];
+  if (!fn) return say(`unknown command "${parts[0]}". Type help.`);
+  try { fn(...parts.slice(1)); } catch (e){ say("error: " + e.message); }
+}
+//#endregion
+
+//#region 19 PERSISTENCE
+function serialise(){
+  return JSON.stringify({
+    app: APP.name, version: APP.version, formatVersion: APP.formatVersion,
+    doc: S.doc
+  });
+}
+function saveDoc(){
+  const blob = new Blob([serialise()], { type: APP.mime });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "investigation" + APP.ext;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  say(`saved ${(blob.size / 1024).toFixed(1)} kB`);
+}
+function rebuildEidSequences(){
+  for (const k of Object.keys(_eidSeq)) delete _eidSeq[k];
+  const all=[...(S.doc.objects||[]),...(S.doc.annotations||[])];
+  for(const o of all){
+    const m=/^([A-Z]+)-(\d+)$/.exec(o.eid||""); if(!m) continue;
+    _eidSeq[m[1]]=Math.max(_eidSeq[m[1]]||0,Number(m[2]));
+  }
+}
+function loadGlassText(text){
+  const raw=safeParse(text);
+  if(!raw||raw.app!==APP.name||!raw.doc||!Array.isArray(raw.doc.objects)||!Array.isArray(raw.doc.relations)) throw new Error("not a valid Glassbox document");
+  if(raw.doc.objects.length>LIMITS.maxObjects||raw.doc.relations.length>LIMITS.maxRelations) throw new Error("document exceeds limits");
+  S.doc=raw.doc; S.selection.clear(); S.semantic=null; S.undo.length=0; S.redo.length=0;
+  COMPUTED.clear(); CACHE.clear(); S.computation.dirty=new Set(); S.computation.errors=new Map();
+  rebuildEidSequences(); S.doc.objects.forEach(o=>S.computation.dirty.add(o.eid)); recomputeAll(); snapshot("open");
+  paintObj(); paintTrace(); paintDeps(); paintUnderstand(); requestDraw(); say("opened .glass investigation");
+}
+function openGlassFile(file){
+  if(!file) return; if(file.size>LIMITS.maxFileBytes) return say("file too large");
+  const r=new FileReader(); r.onload=()=>{try{loadGlassText(String(r.result||""));}catch(e){say("open failed: "+e.message);}}; r.readAsText(file);
+}
+
+//#endregion
+
+//#region 20 EXPORT
+function exportPNG(){
+  try{
+    const a=document.createElement("a");
+    a.download="Glassbox-investigation.png";
+    a.href=cv.toDataURL("image/png"); a.click();
+    say("exported PNG snapshot");
+  }catch(e){ say("PNG export failed: "+e.message); }
+}
+//#endregion
+
+//#region 21 UI SHELL
+function say(m){ S.ui.msg = m; document.getElementById("msg").textContent = m; }
+function paintStatus(){
+  document.getElementById("stDirty").textContent = S.computation.dirty.size;
+  document.getElementById("stMs").textContent = S.computation.lastMs.toFixed(2);
+  document.getElementById("stAtoms").textContent = S.semantic ? S.semantic.size : 0;
+  document.getElementById("stZoom").textContent = Math.round(V.z * 100);
+}
+
+const ICONS={
+  fit:'<svg viewBox="0 0 24 24"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/><rect x="8" y="8" width="8" height="8"/></svg>',
+  clear:'<svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/><circle cx="12" cy="12" r="9"/></svg>',
+  sbox:'<svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 9h16M4 14h16M9 4v16M14 4v16"/></svg>',
+  matrix:'<svg viewBox="0 0 24 24"><path d="M7 4H4v16h3M17 4h3v16h-3"/><path d="M9 8h2M13 8h2M9 12h2M13 12h2M9 16h2M13 16h2"/></svg>',
+  spectrum:'<svg viewBox="0 0 24 24"><path d="M4 19h16M6 17V9M10 17V5M14 17v-7M18 17V3"/></svg>',
+  network:'<svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="5" r="2"/><circle cx="19" cy="12" r="2"/><circle cx="12" cy="19" r="2"/><path d="m7 11 3.5-4M13.5 6.5 17 11M17 13l-3.5 4M10.5 17.5 7 13"/></svg>',
+  function:'<svg viewBox="0 0 24 24"><path d="M5 19c4-1 3-13 7-14 3-.8 3 4 7 3"/><path d="M4 12h16M12 4v16"/></svg>',
+  field:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M8 8h8M8 12h8M8 16h8M10 6v12M14 6v12"/></svg>',
+  note:'<svg viewBox="0 0 24 24"><path d="M5 4h14v12l-4 4H5z"/><path d="M15 20v-4h4M8 8h8M8 11h8M8 14h5"/></svg>',
+  link:'<svg viewBox="0 0 24 24"><path d="M9 15 7 17a4 4 0 0 1-6-6l3-3a4 4 0 0 1 6 0M15 9l2-2a4 4 0 0 1 6 6l-3 3a4 4 0 0 1-6 0M8 12h8"/></svg>',
+  trash:'<svg viewBox="0 0 24 24"><path d="M5 7h14M9 7V4h6v3M7 7l1 13h8l1-13M10 10v7M14 10v7"/></svg>',
+  inspector:'<svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M14 4v16M7 8h4M7 12h4M7 16h4"/></svg>',
+  dependency:'<svg viewBox="0 0 24 24"><circle cx="6" cy="6" r="2"/><circle cx="18" cy="6" r="2"/><circle cx="12" cy="18" r="2"/><path d="M8 7.5 11 16M16 7.5 13 16M8 6h8"/></svg>',
+  diagnostic:'<svg viewBox="0 0 24 24"><path d="M12 3 3 20h18z"/><path d="M12 9v5M12 17h.01"/></svg>',
+  reset:'<svg viewBox="0 0 24 24"><path d="M5 8V4h4M5 5a9 9 0 1 1-1 10"/></svg>',
+  zoomin:'<svg viewBox="0 0 24 24"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5M10 7v6M7 10h6"/></svg>',
+  zoomout:'<svg viewBox="0 0 24 24"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5M7 10h6"/></svg>',
+  grid:'<svg viewBox="0 0 24 24"><path d="M4 4h16v16H4zM9 4v16M15 4v16M4 9h16M4 15h16"/></svg>',
+  values:'<svg viewBox="0 0 24 24"><path d="M7 5 5 19M14 5l-2 14M3 10h15M2 15h15"/></svg>',
+  ribbon:'<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M9 9v11"/></svg>',
+  save:'<svg viewBox="0 0 24 24"><path d="M5 4h12l2 2v14H5z"/><path d="M8 4v6h8V4M8 15h8"/></svg>',
+  export:'<svg viewBox="0 0 24 24"><path d="M12 15V3M8 7l4-4 4 4M5 12v8h14v-8"/></svg>',
+  test:'<svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/><circle cx="12" cy="12" r="9"/></svg>',
+  learn:'<svg viewBox="0 0 24 24"><path d="M4 5h6a4 4 0 0 1 4 4v10H8a4 4 0 0 0-4 1z"/><path d="M20 5h-6a4 4 0 0 0-4 4v10h6a4 4 0 0 1 4 1z"/></svg>',
+  help:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.6 2.6 0 1 1 4.4 1.9c-1 .9-1.9 1.3-1.9 3.1M12 17h.01"/></svg>'
+};
+const tool=(id,label,icon,large=false,title="")=>`<button type="button" class="${large?'big':'small'}" id="${id}" data-help="${id}" aria-label="${title||label}">${ICONS[icon]}<span>${label}</span></button>`;
+const panel=(label,body)=>`<div class="rpanel"><div class="rpanel-body">${body}</div><div class="rpanel-label">${label}</div></div>`;
+
+
+const LEARN_INFO = Object.freeze({
+  "crypto.sbox":{
+    title:"S-box",
+    plain:"An S-box is a substitution table: one input value is replaced with one output value.",
+    why:"Strong S-boxes deliberately hide simple relationships between their inputs and outputs. That makes common cryptanalytic attacks harder.",
+    try:"Click any mapping. Glassbox will highlight that input, output and related mathematical structures.",
+    terms:["S-box","substitution","byte"]
+  },
+  "analysis.ddt":{
+    title:"Differential Distribution Table (DDT)",
+    plain:"This table counts how often an XOR difference at the S-box input becomes a particular XOR difference at the output.",
+    why:"Predictable differences can be exploited by differential cryptanalysis. For AES, non-trivial counts never exceed 4.",
+    try:"Click a bright non-zero cell. Glassbox will show the exact S-box mappings that caused that count.",
+    terms:["DDT","XOR difference","differential uniformity"]
+  },
+  "analysis.lat":{
+    title:"Linear Approximation Table (LAT)",
+    plain:"This table measures how strongly combinations of input bits correlate with combinations of output bits.",
+    why:"Large biases reveal linear relationships that matter in linear cryptanalysis.",
+    try:"Click one of the strongest coloured cells, then inspect the linked Walsh information.",
+    terms:["LAT","mask","linear bias"]
+  },
+  "analysis.walsh":{
+    title:"Walsh spectrum",
+    plain:"A Walsh spectrum measures correlation between a Boolean component and simple linear functions.",
+    why:"Large peaks reveal the closest linear relationships and determine nonlinearity.",
+    try:"Click a strong bar. Then open Walsh Ancestry to see how that coefficient was assembled.",
+    terms:["Walsh transform","nonlinearity","Boolean function"]
+  },
+  "analysis.walshAncestry":{
+    title:"Walsh ancestry",
+    plain:"This view exposes the intermediate sums and differences inside the Walsh-Hadamard transform.",
+    why:"It turns a final coefficient into a traceable calculation instead of a black-box number.",
+    try:"Click a stage to inspect the exact partial values that produced the coefficient.",
+    terms:["FWHT","Walsh coefficient","partial sum"]
+  },
+  "analysis.anf":{
+    title:"Algebraic Normal Form (ANF)",
+    plain:"ANF writes Boolean logic as XORs of variables and products of variables.",
+    why:"Its degree and terms reveal algebraic structure in the S-box.",
+    try:"Click a monomial to see which input and output bits it relates to.",
+    terms:["ANF","monomial","algebraic degree"]
+  },
+  "analysis.influence":{
+    title:"Bit influence",
+    plain:"This matrix shows how often flipping one input bit changes each output bit.",
+    why:"A good S-box should spread changes broadly instead of leaving simple bit-to-bit dependencies.",
+    try:"Click a cell to trace the corresponding input-bit/output-bit relationship.",
+    terms:["avalanche effect","SAC","bit influence"]
+  },
+  "analysis.aesDerivation":{
+    title:"AES S-box derivation",
+    plain:"AES does not use an arbitrary lookup table. Each byte is inverted in GF(2^8), then transformed by an affine map.",
+    why:"Seeing the construction explains where an AES S-box value actually comes from.",
+    try:"Start with input 0x53. Follow it through the inverse and affine stages until it becomes 0xED.",
+    terms:["GF(2^8)","multiplicative inverse","affine transform"]
+  },
+  "math.gfMultiply":{
+    title:"GF(2^8) multiplication microscope",
+    plain:"AES treats bytes as polynomials and multiplies them in a finite field rather than using ordinary integer multiplication.",
+    why:"Finite-field arithmetic is one of the mathematical building blocks behind AES.",
+    try:"Click a reduction step and watch the polynomial terms involved in reducing by x^8+x^4+x^3+x+1.",
+    terms:["finite field","polynomial reduction","0x11B"]
+  }
+});
+
+const GLOSSARY = Object.freeze([
+  ["S-box","A substitution box. It maps each input value to an output value and provides nonlinearity inside many ciphers."],
+  ["XOR","Exclusive OR. Bitwise comparison where equal bits produce 0 and different bits produce 1. Cryptography often measures differences with XOR instead of subtraction."],
+  ["XOR difference","For two values x and x′, their XOR difference is x XOR x′. Differential cryptanalysis studies how these differences propagate."],
+  ["DDT","Differential Distribution Table. Counts how often each input XOR difference produces each output XOR difference through an S-box."],
+  ["Differential uniformity","The largest non-trivial DDT count. Lower values mean no particular differential is excessively probable."],
+  ["LAT","Linear Approximation Table. Measures bias between selected input-bit masks and output-bit masks."],
+  ["Mask","A bit pattern that chooses which bits participate in a parity or linear relation."],
+  ["Linear bias","How far a linear approximation deviates from a perfectly even 50/50 relationship."],
+  ["Walsh transform","A transform used to measure correlations of Boolean functions with linear functions."],
+  ["Nonlinearity","Distance from the closest affine/linear Boolean function. Higher nonlinearity generally means fewer exploitable simple linear relations."],
+  ["ANF","Algebraic Normal Form. A Boolean expression written using XOR and products of variables."],
+  ["Algebraic degree","The highest number of variables multiplied together in any ANF term."],
+  ["Avalanche effect","The desirable property that changing one input bit causes many output bits to change."],
+  ["SAC","Strict Avalanche Criterion. Each output bit should change with probability one half when one input bit is flipped."],
+  ["GF(2^8)","A finite field containing 256 elements. AES interprets bytes as elements of this field."],
+  ["Finite field","A number system with a finite set of elements where addition, subtraction, multiplication and division by non-zero elements remain inside the set."],
+  ["Polynomial reduction","When a field multiplication creates a term of degree too high, it is reduced modulo an irreducible polynomial."],
+  ["0x11B","The hexadecimal form of AES's field polynomial x^8+x^4+x^3+x+1."],
+  ["Affine transform","A linear transformation plus a constant. AES applies one after finite-field inversion to construct its S-box."],
+  ["FWHT","Fast Walsh-Hadamard Transform. An efficient butterfly algorithm for computing Walsh spectra."]
+]);
+
+const TOOL_HELP = Object.freeze({
+  rbGuide:["Guided AES investigation","Walk through a real AES S-box investigation without needing prior cryptography knowledge.","Use this first if the workspace looks unfamiliar."],
+  rbWelcome:["How Glassbox works","Explains the universal interaction: click a structure, follow the highlights, inspect why.","Reopen the start screen at any time."],
+  rbGlossary:["Crypto glossary","Plain-English definitions for the terms used throughout Glassbox.","Search by term such as DDT, Walsh, XOR or finite field."],
+  rbLearnSbox:["What is an S-box?","Focuses the S-box and explains substitution and why nonlinearity matters.","Click a mapping after reading the Inspector."],
+  rbLearnDDT:["What is differential analysis?","Focuses the DDT and explains how XOR differences propagate.","Click a bright non-zero cell."],
+  rbDDT:["Differential distribution","Counts how input XOR differences become output XOR differences.","Click a strong non-zero cell to reveal its contributing mappings."],
+  rbLAT:["Linear approximation","Measures biases between input and output bit masks.","Click a strong coloured cell to inspect the relationship."],
+  rbWalsh:["Walsh spectrum","Shows correlation coefficients for a Boolean component.","Click a strong bar, then inspect its ancestry."],
+  rbAncestry:["Walsh ancestry","Shows the actual FWHT partial sums behind a selected coefficient.","Click a stage to inspect its contribution."],
+  rbANF:["Algebraic normal form","Shows the S-box as XOR combinations of input variables and products.","Click a monomial to inspect its bit dependencies."],
+  rbInfluence:["Bit influence","Shows how flipping each input bit affects each output bit.","Click a cell to trace that influence."],
+  rbAes:["AES derivation","Shows how a byte becomes an AES S-box output through GF(2^8) inversion and an affine transform.","Try input 0x53, which maps to 0xED."],
+  rbField:["Field microscope","Shows exact finite-field multiplication and polynomial reduction.","Click a reduction step to see which polynomial terms cancel."],
+  rbClear:["Clear trace","Clears the current semantic highlight without changing the investigation.","Use this when you want to start a fresh click trail."],
+  rbFit:["Fit workspace","Fits every current structure into the visible canvas.","Use after panning or zooming far away."],
+  rbInspector:["Toggle inspector","Shows or hides definitions, results, explanations and semantic trace.","Keep it open while learning Glassbox."]
+});
+
+let traceMode = "readable";
+let guideIndex = 0;
+function guideSelect(eid){
+  const o=getObj(eid); if(!o) return null;
+  S.selection.clear(); S.selection.add(eid);
+  S.ui.guideTarget=eid;
+  document.getElementById("app").classList.remove("inspector-hidden");
+  paintObj(); paintUnderstand(); requestDraw();
+  return o;
+}
+function guideFeedback(title, detail){
+  const el=document.getElementById("guideResult");
+  if(!el)return;
+  el.hidden=false;
+  el.innerHTML=`<b>${esc(title)}</b><br>${esc(detail)}<br><span style="color:#7f93a5">Camera unchanged. Use View → Fit workspace only if you want to reposition it.</span>`;
+}
+const GUIDE_STEPS = [
+  {
+    title:"Start with substitution",
+    body:"An S-box simply replaces one value with another. AES uses a carefully designed 8-bit S-box, so there are 256 possible inputs and outputs.",
+    show(){ guideSelect("SBOX-01"); clearSemantic(); paintTrace(); guideFeedback("S-box selected","The AES substitution structure is selected and explained in the Inspector."); }
+  },
+  {
+    title:"Interrogate one mapping",
+    body:"AES maps input 0x53 to output 0xED. Click-style highlighting lets the same mapping appear everywhere it matters.",
+    show(){ guideSelect("SBOX-01"); const A=resolveFact({kind:"sbox-cell",eid:"SBOX-01",index:0x53}); if(A)setSemantic(A); paintTrace(); paintUnderstand(); guideFeedback("Mapping 0x53 → 0xED highlighted","The readable trace now shows the selected mapping and every related structure Glassbox can resolve."); }
+  },
+  {
+    title:"See where 0xED comes from",
+    body:"AES first finds the multiplicative inverse of 0x53 in GF(2^8), then applies an affine transformation. This is why the S-box is mathematical rather than arbitrary.",
+    show(){ guideSelect("AESDER-01"); clearSemantic(); paintTrace(); guideFeedback("AES derivation selected","The Inspector explains the GF(2^8) inverse and affine-transform construction behind the S-box value."); }
+  },
+  {
+    title:"Now look for predictable differences",
+    body:"Differential cryptanalysis asks: if two inputs differ by some XOR value, how predictably do their outputs differ? The DDT answers that question.",
+    show(){ guideSelect("DDT-01"); clearSemantic(); paintTrace(); guideFeedback("DDT selected","The Inspector now explains differential analysis and what the heatmap values mean."); }
+  },
+  {
+    title:"Click a strong non-trivial differential",
+    body:"For AES, the strongest non-zero differential count is 4. Glassbox can find one and reveal the exact S-box mappings responsible for it.",
+    show(){
+      const d=COMPUTED.get("DDT-01"); if(!d)return;
+      let found=null;
+      for(let dx=1;dx<d.n&&!found;dx++) for(let dy=0;dy<d.n;dy++) if(d.m[dx*d.n+dy]===d.uniformity){found={dx,dy};break;}
+      if(found){ guideSelect("DDT-01"); const A=resolveFact({kind:"ddt-cell",eid:"DDT-01",row:found.dx,col:found.dy}); if(A)setSemantic(A); paintTrace(); paintUnderstand(); guideFeedback(`Strong differential Δx=0x${U.hex(found.dx,2)}, Δy=0x${U.hex(found.dy,2)}`,`Count ${d.uniformity}. The readable trace lists the exact contributing S-box mappings.`); }
+    }
+  },
+  {
+    title:"You just performed differential analysis",
+    body:"The highlighted S-box mappings are the exact causes of the selected DDT count. That click → cause → explanation loop is the basic way you use Glassbox everywhere.",
+    show(){ guideSelect("SBOX-01"); paintTrace(); paintUnderstand(); guideFeedback("Causal mappings selected","The existing differential highlight remains active while the S-box is selected, so you can inspect the exact mappings responsible."); }
+  }
+];
+
+function showWelcome(show=true){ document.getElementById("welcomeOverlay").hidden=!show; }
+function showGlossary(show=true){
+  document.getElementById("glossaryOverlay").hidden=!show;
+  if(show){ document.getElementById("glossarySearch").value=""; paintGlossary(""); setTimeout(()=>document.getElementById("glossarySearch").focus(),0); }
+}
+function paintGlossary(q){
+  const needle=String(q||"").trim().toLowerCase();
+  const rows=GLOSSARY.filter(([t,d])=>!needle||t.toLowerCase().includes(needle)||d.toLowerCase().includes(needle));
+  document.getElementById("glossaryList").innerHTML=rows.map(([t,d])=>`<div class="gb-glossary-item"><b>${esc(t)}</b><span>${esc(d)}</span></div>`).join("")||'<div class="empty">No matching terms.</div>';
+}
+function startGuide(){
+  showWelcome(false); activeRibbonTab="Learn"; paintRibbon(); guideIndex=0; document.getElementById("guideCoach").hidden=false; paintGuide();
+}
+function paintGuide(){
+  const s=GUIDE_STEPS[guideIndex]; if(!s)return;
+  document.getElementById("guideProgress").textContent=`Step ${guideIndex+1} of ${GUIDE_STEPS.length}`;
+  document.getElementById("guideTitle").textContent=s.title;
+  document.getElementById("guideBody").textContent=s.body;
+  document.getElementById("guideBack").disabled=guideIndex===0;
+  document.getElementById("guideNext").textContent=guideIndex===GUIDE_STEPS.length-1?"Finish":"Next";
+  const result=document.getElementById("guideResult"); if(result) result.hidden=true;
+  guideShow();
+}
+function guideShow(){
+  const step=GUIDE_STEPS[guideIndex];
+  if(!step||!step.show)return;
+  try{ step.show(); say(`Guide: ${step.title} — highlighted without moving the camera`); }
+  catch(e){ guideFeedback("Could not show this step",e.message||String(e)); say("guide error: "+(e.message||e)); }
+}
+function guideNext(){
+  if(guideIndex>=GUIDE_STEPS.length-1){ document.getElementById("guideCoach").hidden=true; S.ui.guideTarget=null; requestDraw(); say("guided AES investigation complete"); return; }
+  guideIndex++; paintGuide();
+}
+function guideBack(){ if(guideIndex>0){guideIndex--;paintGuide();} }
+
+function paintUnderstand(){
+  const body=document.getElementById("understandBody"); if(!body)return;
+  const eid=[...S.selection][0], o=eid?getObj(eid):null;
+  if(!o){
+    body.innerHTML='<div class="gb-understand-title">How to use Glassbox</div><div>See something interesting, click it, then follow the highlighted structures. Glassbox keeps the cryptographic reasoning exact while the Inspector explains what the result means.</div><div class="gb-understand-block"><b>Try this</b><span class="gb-understand-try">Open Learn → Guided AES investigation.</span></div>';
+    return;
+  }
+  const info=LEARN_INFO[o.type];
+  if(!info){ body.innerHTML=`<div class="gb-understand-title">${esc(o.type)}</div><div>This is a live object in the current cryptographic investigation.</div>`; return; }
+  body.innerHTML=`<div class="gb-understand-title">${esc(info.title)}</div><div>${esc(info.plain)}</div><div class="gb-understand-block"><b>Why it matters</b>${esc(info.why)}</div><div class="gb-understand-block"><b>Try this</b><span class="gb-understand-try">${esc(info.try)}</span></div><div class="gb-understand-block"><b>Terms here</b>${info.terms.map(t=>`<span class="gb-inline-term">${esc(t)}</span>`).join("")}</div>`;
+}
+
+function readableTrace(){
+  if(!S.semantic) return '<div class="empty">Nothing selected yet.<br><br>Click any value, matrix cell, mapping, bit or transform stage. Glassbox will highlight the mathematically related structures.</div>';
+  const groups=[];
+  const take=(t)=>S.semantic.ofType(t).map(v=>v.atom);
+  const diffs=take("diff"), maps=take("map"), lin=take("lin"), wal=take("walsh"), steps=take("fieldStep"), bitsIn=take("bitIn"), bitsOut=take("bitOut");
+  if(diffs.length){ const a=diffs[0]; groups.push(["Selected differential",`Input XOR difference 0x${U.hex(a.dx,2)} → output XOR difference 0x${U.hex(a.dy,2)}.`]); }
+  if(lin.length){ const a=lin[0]; groups.push(["Selected linear relation",`Input mask 0x${U.hex(a.a,2)} and output mask 0x${U.hex(a.b,2)}.`]); }
+  if(wal.length){ const a=wal[0]; groups.push(["Walsh coefficient",`Component 0x${U.hex(a.b,2)}, input mask 0x${U.hex(a.a,2)}.`]); }
+  if(maps.length) groups.push(["Contributing S-box mappings",`${maps.length} mapping${maps.length===1?"":"s"} are linked to this selection.`]);
+  if(steps.length) groups.push(["Transform / field stage",`${steps.length} computational stage${steps.length===1?"":"s"} highlighted.`]);
+  if(bitsIn.length||bitsOut.length) groups.push(["Affected bits",`${bitsIn.length} input bit${bitsIn.length===1?"":"s"} and ${bitsOut.length} output bit${bitsOut.length===1?"":"s"} are involved.`]);
+  const counts=S.semantic.counts(); groups.push(["Highlight strength",`${counts.primary} primary · ${counts.contributing} contributing · ${counts.context} context. Unrelated content is dimmed.`]);
+  return `<div class="trace-readable">${groups.map(([h,b])=>`<div class="trace-group"><b>${esc(h)}</b><span>${esc(b)}</span></div>`).join("")}</div>`;
+}
+
+function installTooltips(){
+  const tip=document.getElementById("gbTooltip");
+  const show=(el,e)=>{
+    const h=TOOL_HELP[el.dataset.help]; if(!h)return;
+    tip.innerHTML=`<b>${esc(h[0])}</b><div>${esc(h[1])}</div><div class="try"><strong>Try:</strong> ${esc(h[2])}</div>`;
+    tip.style.display="block"; tip.setAttribute("aria-hidden","false");
+    const x=Math.min(window.innerWidth-tip.offsetWidth-12,e.clientX+14), y=Math.min(window.innerHeight-tip.offsetHeight-12,e.clientY+14);
+    tip.style.left=Math.max(8,x)+"px"; tip.style.top=Math.max(8,y)+"px";
+  };
+  document.querySelectorAll("[data-help]").forEach(el=>{
+    el.addEventListener("mouseenter",e=>show(el,e));
+    el.addEventListener("mousemove",e=>show(el,e));
+    el.addEventListener("mouseleave",()=>{tip.style.display="none";tip.setAttribute("aria-hidden","true");});
+    el.addEventListener("focus",()=>{const r=el.getBoundingClientRect();show(el,{clientX:r.left,clientY:r.bottom});});
+    el.addEventListener("blur",()=>{tip.style.display="none";tip.setAttribute("aria-hidden","true");});
+  });
+}
+
+const RIBBON={
+  Learn:()=>[
+    panel("Start here",tool("rbGuide","Guided AES investigation","learn",true)+tool("rbWelcome","How Glassbox works","help",true)),
+    panel("Reference",'<div class="rstack">'+tool("rbGlossary","Crypto glossary","help")+tool("rbLearnSbox","What is an S-box?","sbox")+tool("rbLearnDDT","What is differential analysis?","matrix")+'</div>')
+  ],
+  Explore:()=>[
+    panel("Navigate",tool("rbFit","Fit workspace","fit",true)+tool("rbClear","Clear trace","clear",true)),
+    panel("Structures",'<div class="rstack">'+tool("rbSbox","S-box structure","sbox")+tool("rbAes","AES derivation","network")+tool("rbField","Field microscope","field")+'</div>'),
+    panel("Investigation",'<div class="rstack">'+tool("rbNew","New investigation","reset")+tool("rbSave","Save investigation","save")+'</div>')
+  ],
+  Analysis:()=>[
+    panel("Differential",tool("rbDDT","Differential distribution","matrix",true,"Focus DDT")+'<div class="rstack">'+tool("rbInfluence","Bit influence","network")+tool("rbAesAnalysis","AES derivation","field")+'</div>'),
+    panel("Linear",tool("rbLAT","Linear approximation","matrix",true,"Focus LAT")+'<div class="rstack">'+tool("rbWalsh","Walsh spectrum","spectrum")+tool("rbAncestry","Walsh ancestry","network")+'</div>'),
+    panel("Algebraic",tool("rbANF","Algebraic normal form","function",true)),
+    panel("Diagnostics",'<div class="rstack">'+tool("rbTests","Run self-tests","test")+tool("rbErrors","Show compute errors","diagnostic")+'</div>')
+  ],
+  Annotate:()=>[
+    panel("Notes",tool("rbAddNote","Add investigation note","note",true)+tool("rbLinkedNote","Add linked note","link",true)),
+    panel("Review",'<div class="rstack">'+tool("rbNotes","Focus notes","note")+tool("rbDeleteNote","Delete selected note","trash")+'</div>')
+  ],
+  Manage:()=>[
+    panel("Selection",'<div class="rstack">'+tool("rbFocusSelected","Focus selected object","fit")+tool("rbClearSelection","Clear selection","clear")+'</div>'),
+    panel("Inspector",tool("rbInspector","Toggle inspector","inspector",true)+tool("rbDeps","Dependency structure","dependency",true)),
+    panel("Document",'<div class="rstack">'+tool("rbReset","Restore canonical AES","reset")+tool("rbSaveManage","Save investigation","save")+'</div>')
+  ],
+  View:()=>[
+    panel("Viewport",tool("rbFitView","Fit workspace","fit",true)+'<div class="rstack">'+tool("rbZoomIn","Zoom in","zoomin")+tool("rbZoomOut","Zoom out","zoomout")+'</div>'),
+    panel("Display",'<div class="rstack">'+tool("rbGrid","Toggle grid","grid")+tool("rbValues","Toggle matrix values","values")+tool("rbInspectorView","Toggle inspector","inspector")+'</div>'),
+    panel("Output",'<div class="rstack">'+tool("rbExportPNG","Export PNG snapshot","export")+tool("rbRibbonState","Cycle ribbon state","ribbon")+'</div>')
+  ]
+};
+let activeRibbonTab="Learn", ribbonState="full";
+function bind(id,fn){const e=document.getElementById(id);if(e)e.addEventListener("click",fn);}
+function paintRibbon(){
+  const tabs=document.getElementById("rtabs");
+  tabs.innerHTML=Object.keys(RIBBON).map(n=>`<button type="button" class="rtab" role="tab" aria-selected="${n===activeRibbonTab}" data-tab="${n}">${n}</button>`).join("");
+  tabs.querySelectorAll(".rtab").forEach(b=>b.addEventListener("click",()=>{activeRibbonTab=b.dataset.tab;paintRibbon();paintOptbar();}));
+  document.getElementById("rpanels").innerHTML=RIBBON[activeRibbonTab]().join("");
+  bindRibbonActions(); paintOptbar(); installTooltips();
+}
+function setRibbonState(state){
+  ribbonState=state;const app=document.getElementById("app");app.classList.remove("ribbon-buttons","ribbon-tabs");if(state==="buttons")app.classList.add("ribbon-buttons");if(state==="tabs")app.classList.add("ribbon-tabs");
+  document.getElementById("rstate-label").textContent=state==="full"?"Full":state==="buttons"?"Buttons":"Tabs"; resize();
+}
+function cycleRibbonState(){setRibbonState(ribbonState==="full"?"buttons":ribbonState==="buttons"?"tabs":"full");}
+function setZoom(f){V.z=U.clamp(V.z*f,.15,12);requestDraw();paintStatus();}
+function toggleInspector(){document.getElementById("app").classList.toggle("inspector-hidden");resize();}
+function toggleGrid(){document.getElementById("stage").classList.toggle("no-grid");say(document.getElementById("stage").classList.contains("no-grid")?"grid hidden":"grid shown");}
+function focusAndSelect(eid){const o=getObj(eid);if(!o)return;S.selection.clear();S.selection.add(eid);S.ui.guideTarget=null;paintObj();paintUnderstand();requestDraw();}
+function semanticLinksForNote(){if(!S.semantic)return[];return S.semantic.list().filter(v=>v.tier!=="context").slice(0,24).map(v=>{const a={...v.atom};delete a.tier;return a;});}
+function addInvestigationNote(linked){
+  const text=window.prompt(linked?"Investigation note linked to current semantic selection:":"Investigation note:","");if(!text)return;
+  const vw=cv.width/DPR/V.z,vh=cv.height/DPR/V.z;const note=makeNote(text,linked?semanticLinksForNote():[],{x:V.x+vw*.36,y:V.y+vh*.38,w:260,h:82});
+  snapshot("add note");S.doc.annotations.push(note);S.selection.clear();S.selection.add(note.eid);paintObj();requestDraw();say(linked?"linked investigation note added":"investigation note added");
+}
+function deleteSelectedNote(){const eid=[...S.selection][0];const i=S.doc.annotations.findIndex(n=>n.eid===eid);if(i<0)return say("select a note first");snapshot("delete note");S.doc.annotations.splice(i,1);S.selection.clear();clearSemantic();paintObj();requestDraw();say("note deleted");}
+function focusNotes(){if(!S.doc.annotations.length)return say("no notes");const n=S.doc.annotations[0];S.selection.clear();S.selection.add(n.eid);V.x=n.visual.x-80;V.y=n.visual.y-80;V.z=1;paintObj();requestDraw();}
+function resetCanonicalAES(){
+  const sb=getObj("SBOX-01");if(!sb)return;snapshot("restore canonical AES");sb.definition={bits:8,construction:"aes",table:[]};sb.provenance={app:APP.version,algo:sb.type,algoVersion:1};sb.revision++;
+  const aes=getObj("AESDER-01");if(aes){aes.definition.input=0x53;aes.revision++;}
+  const gf=getObj("GFMUL-01");if(gf){gf.definition={bits:8,modulus:0x11B,a:0x57,b:0x83};gf.revision++;}
+  const wal=getObj("WALSH-01");if(wal){wal.definition.component=1;wal.revision++;}
+  const wa=getObj("WANC-01");if(wa){wa.definition.mask=1;wa.revision++;}
+  markDirty(sb.eid);if(gf)markDirty(gf.eid);recomputeAll();clearSemantic();S.selection.clear();S.selection.add(sb.eid);paintObj();paintTrace();requestDraw();say("canonical AES investigation restored");
+}
+function showComputeErrors(){
+  const errs=S.computation.errors||new Map();if(!errs.size)return say("no compute errors");const first=[...errs.keys()][0];focusAndSelect(first);say(`${errs.size} compute error${errs.size===1?'':'s'}; first selected`);
+}
+function paintOptbar(){
+  const el=document.getElementById("optbar");
+  if(activeRibbonTab==="Learn"){
+    el.innerHTML=`<span class="context-name">Learn</span><span>Universal workflow: click something → related structures highlight → Inspector explains why.</span><button id="optStartGuide">Start guided AES</button><button id="optGlossary">Glossary</button>`;
+    bind("optStartGuide",startGuide); bind("optGlossary",()=>showGlossary(true));
+  }else if(activeRibbonTab==="Explore"){
+    const eid=[...S.selection][0];const o=eid?getObj(eid):null;el.innerHTML=`<span class="context-name">Explore</span><span>${o?`${o.eid} · ${o.type}`:"Click any cryptographic structure to interrogate it."}</span>`;
+  }else if(activeRibbonTab==="Analysis"){
+    const wal=getObj("WALSH-01"),anc=getObj("WANC-01");el.innerHTML=`<span class="context-name">Analysis</span><label>Walsh component <input id="optWalshComp" value="${U.hex(wal?.definition.component||1,2)}" size="3"></label><label>Input mask <input id="optWalshMask" value="${U.hex(anc?.definition.mask||1,2)}" size="3"></label><button id="optApplyWalsh">Apply</button><span>DDT, LAT, Walsh, ANF and influence are exact derived views.</span>`;
+    bind("optApplyWalsh",()=>{COMMANDS.walsh(document.getElementById("optWalshMask").value,document.getElementById("optWalshComp").value);});
+  }else if(activeRibbonTab==="Annotate"){
+    el.innerHTML=`<span class="context-name">Annotate</span><input id="optNoteText" type="text" placeholder="Write an investigation note"><label><input id="optNoteLink" type="checkbox" checked> Link to current semantic trace</label><button id="optAddNote">Add note</button>`;
+    bind("optAddNote",()=>{const v=document.getElementById("optNoteText").value.trim();if(!v)return;snapshot("add note");const vw=cv.width/DPR/V.z,vh=cv.height/DPR/V.z;const note=makeNote(v,document.getElementById("optNoteLink").checked?semanticLinksForNote():[],{x:V.x+vw*.36,y:V.y+vh*.38,w:280,h:82});S.doc.annotations.push(note);S.selection.clear();S.selection.add(note.eid);paintObj();requestDraw();document.getElementById("optNoteText").value="";say("investigation note added");});
+  }else if(activeRibbonTab==="Manage"){
+    const errs=S.computation.errors?.size||0;el.innerHTML=`<span class="context-name">Manage</span><span>Objects ${S.doc.objects.length}</span><span>Relations ${S.doc.relations.length}</span><span>Notes ${S.doc.annotations.length}</span><span>Compute errors ${errs}</span><span>Document ${(serialise().length/1024).toFixed(1)} kB</span>`;
+  }else{
+    el.innerHTML=`<span class="context-name">View</span><span>Zoom ${Math.round(V.z*100)}%</span><span>Matrix values ${S.prefs.showValues?'shown':'hidden'}</span><span>Ribbon ${ribbonState}</span>`;
+  }
+}
+function bindRibbonActions(){
+  const map={
+    rbGuide:startGuide,rbWelcome:()=>showWelcome(true),rbGlossary:()=>showGlossary(true),rbLearnSbox:()=>{focusAndSelect("SBOX-01");paintUnderstand();},rbLearnDDT:()=>{focusAndSelect("DDT-01");paintUnderstand();},
+    rbFit:zoomExtents,rbClear:()=>{clearSemantic();S.selection.clear();paintObj();say("semantic trace cleared");},rbSbox:()=>focusAndSelect("SBOX-01"),rbAes:()=>focusAndSelect("AESDER-01"),rbField:()=>focusAndSelect("GFMUL-01"),rbNew:resetCanonicalAES,rbSave:saveDoc,
+    rbDDT:()=>focusAndSelect("DDT-01"),rbInfluence:()=>focusAndSelect("INF-01"),rbAesAnalysis:()=>focusAndSelect("AESDER-01"),rbLAT:()=>focusAndSelect("LAT-01"),rbWalsh:()=>focusAndSelect("WALSH-01"),rbAncestry:()=>focusAndSelect("WANC-01"),rbANF:()=>focusAndSelect("ANF-01"),rbTests:runSelfTests,rbErrors:showComputeErrors,
+    rbAddNote:()=>addInvestigationNote(false),rbLinkedNote:()=>addInvestigationNote(true),rbNotes:focusNotes,rbDeleteNote:deleteSelectedNote,
+    rbFocusSelected:()=>{const eid=[...S.selection][0];eid?focusObject(eid):say("nothing selected");},rbClearSelection:()=>{S.selection.clear();paintObj();requestDraw();},rbInspector:toggleInspector,rbDeps:()=>{document.getElementById("app").classList.remove("inspector-hidden");paintDeps();},rbReset:resetCanonicalAES,rbSaveManage:saveDoc,
+    rbFitView:zoomExtents,rbZoomIn:()=>setZoom(1.2),rbZoomOut:()=>setZoom(1/1.2),rbGrid:toggleGrid,rbValues:()=>{S.prefs.showValues=!S.prefs.showValues;requestDraw();say(`matrix values ${S.prefs.showValues?'shown':'hidden'}`);},rbInspectorView:toggleInspector,rbExportPNG:exportPNG,rbRibbonState:cycleRibbonState
+  };Object.entries(map).forEach(([id,fn])=>bind(id,fn));
+}
+
+bind("rstate-cycle",cycleRibbonState);
+bind("btnGlossary",()=>showGlossary(true));
+bind("traceModeBtn",()=>{traceMode=traceMode==="readable"?"technical":"readable";paintTrace();});
+bind("welcomeGuide",startGuide);bind("welcomeExpert",()=>{showWelcome(false);activeRibbonTab="Explore";paintRibbon();});
+bind("welcomeGlossary",()=>{showWelcome(false);showGlossary(true);});
+bind("glossaryClose",()=>showGlossary(false));bind("guideClose",()=>{document.getElementById("guideCoach").hidden=true;S.ui.guideTarget=null;requestDraw();});
+bind("guideNext",guideNext);bind("guideBack",guideBack);
+document.getElementById("glossarySearch").addEventListener("input",e=>paintGlossary(e.target.value));
+bind("btnUndo",()=>{undo();paintObj();paintTrace();requestDraw();paintOptbar();});
+bind("btnRedo",()=>{redo();paintObj();paintTrace();requestDraw();paintOptbar();});
+bind("btnSave",saveDoc);bind("btnNew",resetCanonicalAES);bind("btnOpen",()=>document.getElementById("glassFileIn").click());
+document.getElementById("glassFileIn").addEventListener("change",e=>{openGlassFile(e.target.files&&e.target.files[0]);e.target.value="";});
+
+const cmdEl=document.getElementById("cmd");
+cmdEl.addEventListener("keydown",e=>{if(e.key==="Enter"){runCommand(cmdEl.value);cmdEl.value="";paintOptbar();}if(e.key==="Escape")cmdEl.blur();e.stopPropagation();});
+paintRibbon();setRibbonState("full");
+//#endregion
+
+//#region 22 INPUT / KEYBOARD
+let drag = null;
+
+function describeHoverFact(fact){
+  if (!fact) return "";
+  const d = COMPUTED.get(fact.eid);
+  if (!d) return fact.kind;
+  if (fact.kind === "sbox-cell"){
+    const y = d.table[fact.index];
+    return `S-box  S(0x${U.hex(fact.index,2)}) = 0x${U.hex(y,2)}`;
+  }
+  if (fact.kind === "ddt-cell"){
+    const v = d.m[fact.row * d.n + fact.col];
+    return `DDT[0x${U.hex(fact.row,2)}, 0x${U.hex(fact.col,2)}] = ${v}`;
+  }
+  if (fact.kind === "lat-cell"){
+    const v = d.m[fact.row * d.n + fact.col];
+    return `LAT[0x${U.hex(fact.row,2)}, 0x${U.hex(fact.col,2)}] = ${v}`;
+  }
+  if (fact.kind === "walsh-coefficient"){
+    return `Walsh  a=0x${U.hex(fact.index,2)}  W=${d.w[fact.index]}`;
+  }
+  if (fact.kind === "anf-monomial"){
+    return `ANF monomial  m=0x${U.hex(fact.index,2)}  coeff=0x${U.hex(d.coeff[fact.index],2)}`;
+  }
+  if (fact.kind === "influence-cell"){
+    return `Bit influence  input b${fact.row} → output b${fact.col}: ${d.m[fact.row*d.b+fact.col]}/${d.n}`;
+  }
+  if (fact.kind === "walsh-ancestry-stage"){
+    const rows = d.ancestry[fact.mask] || [], r = rows[fact.stage];
+    return r ? `Walsh stage ${fact.stage+1}: ${r.left} ${r.branch==="sum"?"+":"−"} ${r.right} = ${r.result}` : fact.kind;
+  }
+  if (fact.kind === "field-step"){
+    const st = d.steps[fact.index];
+    return st ? `GF step ${fact.index}: acc=${st.accRepr.hex}  next=${st.shiftedRepr.hex}${st.reduced?"  reduction":""}` : fact.kind;
+  }
+  if (fact.kind === "aes-stage"){
+    const st = d.stages[fact.index];
+    return st ? `AES derivation: ${st.label} = ${st.repr.hex}` : fact.kind;
+  }
+  return fact.kind;
+}
+
+cv.addEventListener("pointerdown", e => {
+  const r = cv.getBoundingClientRect();
+  const sp = { x: e.clientX - r.left, y: e.clientY - r.top }, wp = s2w(sp);
+  if (e.button === 1 || e.altKey){ drag = { sp, vx: V.x, vy: V.y }; cv.setPointerCapture(e.pointerId); return; }
+  const o = hitObject(wp);
+  S.selection.clear(); if (o) S.selection.add(o.eid); paintUnderstand();
+  const fact = pickSemantic(wp);
+  if (fact){
+    const atoms = resolveFact(fact);
+    if (atoms) setSemantic(atoms); else clearSemantic();
+    say(`${fact.kind} \u2192 ${atoms ? atoms.size : 0} atoms`);
+  } else { clearSemantic(); say("empty space"); }
+  paintObj(); requestDraw();
+});
+cv.addEventListener("pointermove", e => {
+  const r = cv.getBoundingClientRect();
+  if (drag){
+    V.x = drag.vx - (e.clientX - r.left - drag.sp.x) / V.z;
+    V.y = drag.vy - (e.clientY - r.top - drag.sp.y) / V.z;
+    requestDraw();
+    return;
+  }
+  const sp = { x: e.clientX - r.left, y: e.clientY - r.top }, wp = s2w(sp);
+  const fact = pickSemantic(wp);
+  S.ui.hoverText = describeHoverFact(fact);
+  document.getElementById("msg").textContent = S.ui.hoverText || S.ui.msg || "";
+});
+cv.addEventListener("pointerleave", () => {
+  if (!drag){
+    S.ui.hoverText = "";
+    document.getElementById("msg").textContent = S.ui.msg || "";
+  }
+});
+cv.addEventListener("pointerup", e => { drag = null; try { cv.releasePointerCapture(e.pointerId); } catch (_){} });
+cv.addEventListener("wheel", e => {
+  e.preventDefault();
+  const r = cv.getBoundingClientRect(), sp = { x: e.clientX - r.left, y: e.clientY - r.top };
+  const before = s2w(sp), f = e.deltaY < 0 ? 1.12 : 1 / 1.12;
+  V.z = U.clamp(V.z * f, .15, 12);
+  const after = s2w(sp);
+  V.x += before.x - after.x; V.y += before.y - after.y;
+  requestDraw();
+}, { passive: false });
+
+window.addEventListener("keydown", e => {
+  if (e.target === cmdEl) return;
+  if (e.key === "Escape"){ clearSemantic(); S.selection.clear(); paintObj(); requestDraw(); }
+  else if (e.key === "f" || e.key === "F") zoomExtents();
+  else if (e.ctrlKey && e.key.toLowerCase() === "z"){ e.preventDefault(); undo(); paintObj(); paintTrace(); requestDraw(); }
+  else if (e.ctrlKey && e.key.toLowerCase() === "y"){ e.preventDefault(); redo(); paintObj(); paintTrace(); requestDraw(); }
+  else if (e.key === "/"){ e.preventDefault(); cmdEl.focus(); }
+});
+window.addEventListener("resize", resize);
+//#endregion
+
+//#region 23 SELF-TESTS
+/* The ten locked acceptance criteria for the v0.0 skeleton. AC1, AC4, AC5 and
+   AC6 are enforced by scanning function source, so the architectural rules are
+   checked by the build rather than trusted to discipline. */
+/* Two distinct bans. CRYPTO_IDENTS is domain knowledge - nothing outside
+   regions 08 and 10 may hold it. STORE_ACCESS is reaching into derived state -
+   banned in renderers (data arrives as a parameter) but legitimate in the
+   dependency graph, which must evict COMPUTED without knowing what it holds. */
+/* Case-SENSITIVE. An earlier /i version matched the English word "present"
+   inside a renderer and reported a leak that did not exist. */
+const CRYPTO_IDENTS = /\b(computeDDT|computeLAT|computeWalsh|computeANF|computeSbox|computeInfluence|computeGFMultiply|computeAesDerivation|aesSbox|makeField|fwht|moebius|parity|popcount)\b|sb\.table|\bPRESENT_SBOX\b/;
+const STORE_ACCESS  = /\bCOMPUTED\b|\bresolveFact\b|\bRESOLVERS\b|S\.doc\.relations|S\.semantic\.map/;
+const ATOM_CONSTRUCTION = /\btier\s*:\s*["'](primary|contributing|context)["']|\.add\s*\(/;
+
+function scanRenderers(re){
+  for (const [name, R] of Object.entries(RENDER)){
+    for (const [fname, f] of Object.entries(R)){
+      if (typeof f !== "function") continue;
+      if (re.test(f.toString())) return `${name}.${fname}`;
+    }
+  }
+  return null;
+}
+
+let _ac9orig = 0;
+function runSelfTests(){
+  const out = [], t = (name, fn) => {
+    try { const r = fn(); out.push([r === true, name, r === true ? "" : String(r)]); }
+    catch (e){ out.push([false, name, e.message]); }
+  };
+
+  t("AC1 renderers emit raw facts only, never atoms", () => {
+    let probed = 0;
+    for (const o of S.doc.objects){
+      const rn = o.visual.renderer, R = RENDER[rn];
+      if (!R || !R.semanticHitTest) continue;
+      const f = R.semanticHitTest(o, { x: 60, y: 60 }, COMPUTED.get(o.eid));
+      if (!f) continue;
+      probed++;
+      if (typeof f.kind !== "string") return `${rn} fact has no kind`;
+      if ("t" in f || "tier" in f) return `${rn} emitted an atom, not a fact`;
+      if (!RESOLVERS[f.kind]) return `${rn} emits kind "${f.kind}" with no resolver`;
+    }
+    if (probed < 3) return `only ${probed} renderers probed`;
+    const bad = scanRenderers(ATOM_CONSTRUCTION);
+    return bad ? `${bad} constructs atoms` : true;
+  });
+
+  t("AC2 resolver performs all cryptographic reasoning", () => {
+    const A = resolveFact({ kind: "ddt-cell", eid: "DDT-01", row: 1, col: COMPUTED.get("SBOX-01").table[0] ^ COMPUTED.get("SBOX-01").table[1] });
+    return (A && A.ofType("map").length > 0) || "resolver derived nothing";
+  });
+
+  t("AC3 resolver returns tiered atoms only", () => {
+    const A = resolveFact({ kind: "ddt-cell", eid: "DDT-01", row: 1, col: COMPUTED.get("SBOX-01").table[0] ^ COMPUTED.get("SBOX-01").table[1] });
+    for (const { atom, tier } of A.list()){
+      if (!ATOM_TYPES[atom.t]) return `unknown atom type ${atom.t}`;
+      if (!TIERS.includes(tier)) return `bad tier ${tier}`;
+      if (tier === "dimmed") return "dimmed was broadcast";
+    }
+    return true;
+  });
+
+  t("AC4 renderers consume atoms only", () => {
+    let seen = 0;
+    for (const R of Object.values(RENDER)){
+      if (typeof R.draw !== "function") continue;
+      const src = R.draw.toString();
+      if (/env\.tier\(|env\.atoms\./.test(src)) seen++;
+      if (/S\.doc\.relations|S\.semantic\.map/.test(src)) return "renderer read raw state";
+    }
+    return seen >= 3 || `only ${seen} renderers use the atom primitive`;
+  });
+
+  t("AC5 no renderer references computation or derived state", () => {
+    return scanRenderers(CRYPTO_IDENTS) && `${scanRenderers(CRYPTO_IDENTS)} references computation`
+        || scanRenderers(STORE_ACCESS) && `${scanRenderers(STORE_ACCESS)} reaches into derived state`
+        || true;
+  });
+
+  t("AC6 dependency graph is crypto-agnostic", () => {
+    for (const f of [markDirty, topoOrder, dependentsOf, sourcesOf, registerDependency]){
+      const src = f.toString();
+      if (CRYPTO_IDENTS.test(src)) return `${f.name} holds domain knowledge`;
+      if (/TYPES\[|\.definition\./.test(src)) return `${f.name} inspects a typed definition`;
+    }
+    // must operate on ids it has never seen, with no registered types
+    return topoOrder(["zeta", "alpha"]).length === 2 || "fails on synthetic ids";
+  });
+
+  t("AC7 computed data is not serialised and not in history", () => {
+    const s = serialise();
+    if (/"m"\s*:\s*[[{]/.test(s)) return "matrix array in document";
+    if (/uniformity|distinct|bijective/.test(s)) return "computed metric in document";
+    for (const h of S.undo){
+      if (/uniformity|distinct|"m":/.test(h.blob)) return `derived data in snapshot "${h.label}"`;
+    }
+    return true;
+  });
+
+  t("AC8 one DDT cell lights the exact contributing mappings", () => {
+    const d = COMPUTED.get("DDT-01"), sb = COMPUTED.get("SBOX-01");
+    let checked = 0;
+    for (let dx = 1; dx < d.n; dx++) for (let dy = 0; dy < d.n; dy++){
+      const v = d.m[dx * d.n + dy]; if (!v) continue;
+      const A = resolveFact({ kind: "ddt-cell", eid: "DDT-01", row: dx, col: dy });
+      const maps = A.ofType("map").filter(e => e.tier === "contributing");
+      if (maps.length !== v) return `DDT[${U.hex(dx)}][${U.hex(dy)}]=${v}, resolver lit ${maps.length}`;
+      for (const { atom } of maps){
+        if (sb.table[atom.x] !== atom.y) return "atom asserts a mapping that does not exist";
+        if ((sb.table[atom.x] ^ sb.table[atom.x ^ dx]) !== dy) return "atom lit a non-contributing mapping";
+      }
+      // pair structure must cover every lit mapping exactly once per pair
+      const pairs = A.ofType("pair").filter(e => e.tier === "contributing");
+      if (pairs.length !== v / 2) return `expected ${v / 2} pairs, got ${pairs.length}`;
+      for (const { atom } of pairs){
+        if ((atom.x0 ^ atom.x1) !== dx) return "pair not separated by dx";
+      }
+      checked++;
+    }
+    return checked > 0 || "no nonzero cells to check";
+  });
+
+  t("AC9 changing the S-box dirties and recomputes the DDT", () => { try {
+    const before = [...COMPUTED.get("DDT-01").m].join(",");
+    const sb = getObj("SBOX-01");
+    materialise(sb);
+    const orig = _ac9orig = sb.definition.table[5];
+    sb.definition.table[5] = (orig + 1) & (COMPUTED.get(sb.eid).n - 1);
+    markDirty(sb.eid);
+    for (const d of dependentsOf("SBOX-01"))
+      if (!S.computation.dirty.has(d)) return `${d} not marked dirty`;
+    for (const d of dependentsOf("LAT-01"))
+      if (!S.computation.dirty.has(d)) return `transitive dependent ${d} not marked dirty`;
+    if (COMPUTED.has("DDT-01")) return "stale DDT survived markDirty";
+    recomputeAll();
+    const after = [...COMPUTED.get("DDT-01").m].join(",");
+    return after !== before || "DDT unchanged by an S-box edit";
+    } finally {
+      const sb = getObj("SBOX-01");
+      if (sb && sb.definition.table.length) sb.definition.table[5] = _ac9orig;
+      markDirty("SBOX-01"); recomputeAll();      // never leave COMPUTED poisoned
+    }
+  });
+
+  t("AC10 undo restores the definition and regenerates the DDT", () => {
+    const before = [...COMPUTED.get("DDT-01").m].join(",");
+    const sb0 = getObj("SBOX-01");
+    materialise(sb0);
+    const orig = sb0.definition.table[7];
+    snapshot("acceptance-edit");
+    const sb = getObj("SBOX-01");
+    sb.definition.table[7] = (orig + 3) & (COMPUTED.get(sb.eid).n - 1);
+    markDirty(sb.eid); recomputeAll();
+    if ([...COMPUTED.get("DDT-01").m].join(",") === before) return "edit had no effect";
+    COMPUTED.delete("DDT-01");                       // prove regeneration, not restoration
+    undo();
+    const sbA = getObj("SBOX-01");
+    if (sbA.definition.table.length && sbA.definition.table[7] !== orig) return "definition not restored";
+    if (!sbA.definition.table.length && sbA.definition.construction !== "aes") return "construction not restored";
+    const d = COMPUTED.get("DDT-01");
+    if (!d) return "DDT not regenerated after undo";
+    return [...d.m].join(",") === before || "regenerated DDT differs";
+  });
+
+  /* -- kernel correctness: published constants, not self-consistency ------- */
+  t("K1 GF(2^8) arithmetic matches the AES specification", () => {
+    const F = makeField(8, 0x11B);
+    if (F.mul(0x57, 0x83) !== 0xC1) return "mul(57,83) wrong";
+    if (F.inv(0x53) !== 0xCA) return "inv(53) wrong";
+    for (let x = 1; x < 256; x++) if (F.mul(x, F.inv(x)) !== 1) return `inv broken at ${U.hex(x, 2)}`;
+    return true;
+  });
+  t("K2 constructed AES S-box matches published bytes", () => {
+    const t8 = aesSbox().table;
+    const head = [0x63,0x7C,0x77,0x7B,0xF2,0x6B,0x6F,0xC5,0x30,0x01,0x67,0x2B,0xFE,0xD7,0xAB,0x76];
+    const tail = [0x8C,0xA1,0x89,0x0D,0xBF,0xE6,0x42,0x68,0x41,0x99,0x2D,0x0F,0xB0,0x54,0xBB,0x16];
+    for (let i = 0; i < 16; i++) if (t8[i] !== head[i]) return `byte ${i}`;
+    for (let i = 0; i < 16; i++) if (t8[240 + i] !== tail[i]) return `byte ${240 + i}`;
+    return new Set(t8).size === 256 || "not a bijection";
+  });
+  t("K3 AES metrics match the literature (4 / 112 / 7)", () => {
+    const d = COMPUTED.get("DDT-01"), l = COMPUTED.get("LAT-01"), a = COMPUTED.get("ANF-01");
+    if (!d || !l || !a) return "objects missing";
+    if (COMPUTED.get("SBOX-01").bits !== 8) return "not an 8-bit document";
+    if (d.uniformity !== 4) return `uniformity ${d.uniformity}`;
+    if (l.nonlinearity !== 112) return `nonlinearity ${l.nonlinearity}`;
+    if (l.maxAbs !== 16) return `max|LAT| ${l.maxAbs}`;
+    if (a.degree !== 7) return `degree ${a.degree}`;
+    return true;
+  });
+  t("K4 FWHT LAT equals the naive definition (random cells)", () => {
+    const sb = COMPUTED.get("SBOX-01"), l = COMPUTED.get("LAT-01"), N = sb.n;
+    for (let k = 0; k < 30; k++){
+      const a = Math.floor(Math.random() * N), b = Math.floor(Math.random() * N);
+      let agree = 0;
+      for (let x = 0; x < N; x++) if (parity(a & x) === parity(b & sb.table[x])) agree++;
+      if (agree - (N >> 1) !== l.m[a * N + b]) return `mismatch at a=${U.hex(a,2)} b=${U.hex(b,2)}`;
+    }
+    return true;
+  });
+  t("K5 Parseval holds for every component", () => {
+    const l = COMPUTED.get("LAT-01"), N = l.n;
+    for (let b = 1; b < N; b++){
+      let sum = 0;
+      for (let a = 0; a < N; a++){ const w = l.m[a * N + b] * 2; sum += w * w; }
+      if (sum !== N * N) return `component ${U.hex(b,2)} sums ${sum}, expected ${N * N}`;
+    }
+    return true;
+  });
+  t("K6 ANF reconstructs every S-box output", () => {
+    const sb = COMPUTED.get("SBOX-01"), a = COMPUTED.get("ANF-01"), N = sb.n;
+    for (let x = 0; x < N; x++){
+      let acc = 0;
+      for (let m = x; ; m = (m - 1) & x){ acc ^= a.coeff[m]; if (!m) break; }
+      if (acc !== sb.table[x]) return `x=${U.hex(x,2)}`;
+    }
+    return true;
+  });
+  t("K7 Walsh spectrum agrees with its LAT column", () => {
+    const l = COMPUTED.get("LAT-01"), w = COMPUTED.get("WALSH-01"), N = l.n;
+    for (let a = 0; a < N; a++) if (w.w[a] !== l.m[a * N + w.component] * 2) return `mask ${U.hex(a,2)}`;
+    return true;
+  });
+  t("K8 computation budget refuses oversized work", () => {
+    try { checkBudget("probe", 1e12, 1e9); return "budget not enforced"; }
+    catch (_){ return true; }
+  });
+  t("K9 no floating point anywhere in a stored result", () => {
+    // A top-level-only scan missed floats nested inside bestProb / bestBias.
+    const walk = (obj, path, depth) => {
+      if (!obj || typeof obj !== "object" || ArrayBuffer.isView(obj) || depth > 4) return null;
+      for (const [k, v] of Object.entries(obj)){
+        if (typeof v === "number" && Number.isFinite(v) && !Number.isInteger(v)) return `${path}${k} = ${v}`;
+        if (v && typeof v === "object"){ const r = walk(v, `${path}${k}.`, depth + 1); if (r) return r; }
+      }
+      return null;
+    };
+    for (const [eid, d] of COMPUTED){ const r = walk(d, eid + ".", 0); if (r) return r; }
+    // and prove it for a value that is not a power of two
+    const p = exactProb(6, 256);
+    const r2 = walk(p, "exactProb(6,256).", 0);
+    return r2 ? `synthetic: ${r2}` : true;
+  });
+
+  t("K12 one failing object does not blank the workspace", () => {
+    // Injects a deliberately throwing type rather than relying on a domain bug,
+    // so the test keeps exercising the scheduler after the domain bug is fixed.
+    defineType("test.alwaysFails", {
+      family: "test", eidPrefix: "FAILTEST", renderer: null,
+      compute: () => { throw new Error("deliberate failure"); }, defaults: () => ({})
+    });
+    const bad = makeObject("test.alwaysFails", {}, { x: -9999, y: -9999, w: 1, h: 1 });
+    const downstream = makeObject("test.alwaysFails", {}, { x: -9999, y: -9998, w: 1, h: 1 });
+    S.doc.objects.push(bad, downstream);
+    registerDependency(bad.eid, downstream.eid, "derives-from");
+    try {
+      S.doc.objects.forEach(o => markDirty(o.eid));
+      recomputeAll();
+      if (!S.computation.errors.has(bad.eid)) return "failure not recorded";
+      const dsErr = S.computation.errors.get(downstream.eid);
+      if (!dsErr || dsErr.blockedBy !== bad.eid) return "descendant not marked blocked";
+      if (COMPUTED.has(downstream.eid)) return "blocked descendant kept stale data";
+      for (const o of S.doc.objects){
+        if (o.type === "test.alwaysFails") continue;
+        if (!COMPUTED.has(o.eid)) return `${o.eid} lost its data to an unrelated failure`;
+      }
+      return true;
+    } finally {
+      S.doc.objects = S.doc.objects.filter(o => o.type !== "test.alwaysFails");
+      S.doc.relations = S.doc.relations.filter(r => r.from !== bad.eid && r.to !== downstream.eid);
+      S.computation.errors.delete(bad.eid); S.computation.errors.delete(downstream.eid);
+      delete TYPES["test.alwaysFails"];
+      S.doc.objects.forEach(o => markDirty(o.eid));
+      recomputeAll();
+    }
+  });
+
+  t("K13 field microscope exposes the term that triggers each reduction", () => {
+    const gf = S.doc.objects.find(o => o.type === "math.gfMultiply");
+    const d = gf && COMPUTED.get(gf.eid);
+    if (!d) return "no field data";
+    const red = d.steps.filter(st => st.reduced);
+    if (!red.length) return "no reducing step in 0x57 x 0x83";
+    for (const st of red){
+      if (st.rawRepr.degree !== d.bits) return `step ${st.k} raw degree ${st.rawRepr.degree}, expected ${d.bits}`;
+      if ((st.raw ^ d.modulus) !== st.shifted) return `step ${st.k}: raw ^ modulus != shifted`;
+      if (!st.cancels.includes(d.bits)) return `step ${st.k} does not record x^${d.bits} cancelling`;
+    }
+    return true;
+  });
+
+  t("K14 modulus label is derived from the modulus, not hardcoded", () => {
+    const a = modulusRepresentation(0x11B, 8);
+    if (a.polynomial !== "x^8 + x^4 + x^3 + x + 1") return `AES: ${a.polynomial}`;
+    const b = modulusRepresentation(0x13, 4);
+    if (b.polynomial !== "x^4 + x + 1") return `GF(2^4): ${b.polynomial}`;
+    const c = modulusRepresentation(0x7, 2);
+    return c.polynomial === "x^2 + x + 1" || `GF(2^2): ${c.polynomial}`;
+  });
+
+  t("K15 multiplication trace reproduces the field product", () => {
+    for (const [bits, mod] of [[8, 0x11B], [4, 0x13], [4, 0x19], [6, 0x43]]){
+      const F = makeField(bits, mod), N = 1 << bits;
+      for (let k = 0; k < 24; k++){
+        const a = Math.floor(Math.random() * N), b = Math.floor(Math.random() * N);
+        const tr = F.mulTrace(a, b);
+        if (tr.result !== F.mul(a, b)) return `GF(2^${bits})/0x${mod.toString(16)}: trace != mul at ${a}x${b}`;
+        // replay the trace independently
+        let acc = 0, cur = a, bb = b;
+        for (const st of tr.steps){
+          if (st.bBit) acc ^= cur;
+          cur = (cur << 1) & ((1 << bits) - 1) ^ (((cur << 1) & (1 << bits)) ? (mod & ((1 << bits) - 1)) : 0);
+          bb >>= 1;
+        }
+        if (acc !== tr.result) return `GF(2^${bits}): replay ${acc} != ${tr.result}`;
+      }
+    }
+    return true;
+  });
+  t("K10 field microscope exposes the exact AES multiplication trace", () => {
+    const d = COMPUTED.get("GFMUL-01");
+    if (!d) return "GFMUL-01 missing";
+    if (d.a !== 0x57 || d.b !== 0x83 || d.result !== 0xC1) return `got ${U.hex(d.a,2)}×${U.hex(d.b,2)}=${U.hex(d.result,2)}`;
+    if (!d.steps.length || !d.steps.some(st => st.reduced)) return "reduction trace missing";
+    if (d.resultRepr.polynomial !== "x^7 + x^6 + 1") return `result polynomial ${d.resultRepr.polynomial}`;
+    return true;
+  });
+  t("K11 AES derivation exposes 53 -> CA -> ED and matches SBOX-01", () => {
+    const d = COMPUTED.get("AESDER-01");
+    if (!d) return "AESDER-01 missing";
+    if (d.input !== 0x53 || d.inverse !== 0xCA || d.output !== 0xED) return `got ${U.hex(d.input,2)} -> ${U.hex(d.inverse,2)} -> ${U.hex(d.output,2)}`;
+    if (!d.matchesSource) return `derivation does not match source byte ${U.hex(d.sourceValue,2)}`;
+    if (d.stages.length !== 8) return `expected 8 derivation stages, got ${d.stages.length}`;
+    return true;
+  });
+
+  t("K16 Walsh ancestry final partial sums equal the stored spectrum", () => {
+    const w=COMPUTED.get("WALSH-01"); if (!w || !w.ancestry || !w.stageValues || w.stageValues.length!==w.bits+1) return "ancestry missing";
+    for (let a=0;a<w.n;a++){ const rows=w.ancestry[a]; if (!rows || rows.length!==w.bits) return `mask ${a} rows`; if (rows[rows.length-1].result!==w.w[a]) return `mask ${U.hex(a,2)} final mismatch`; }
+    return true;
+  });
+  t("K17 every Walsh ancestry stage reproduces its butterfly equation", () => {
+    const w=COMPUTED.get("WALSH-01");
+    for (let a=0;a<w.n;a++) for (const r of w.ancestry[a]){ const expect=r.branch==="sum" ? r.left+r.right : r.left-r.right; if (r.result!==expect) return `a=${U.hex(a,2)} stage=${r.stage}`; }
+    return true;
+  });
+  t("K18 AES derivation relation is comparison, not derivation", () => {
+    const r=S.doc.relations.find(r=>r.from==="SBOX-01"&&r.to==="AESDER-01"); return (r&&r.kind==="compares-with") || `relation ${r&&r.kind}`;
+  });
+
+  t("K19 S-box mapping propagates to exact DDT cells", () => {
+    const sb=COMPUTED.get("SBOX-01"), A=resolveFact({kind:"sbox-cell",eid:"SBOX-01",index:0x53});
+    const cells=A.ofType("diff").map(v=>v.atom);
+    if (cells.length!==sb.n) return `expected ${sb.n}, got ${cells.length}`;
+    for (const q of cells){
+      const expect=sb.table[0x53]^sb.table[0x53^q.dx];
+      if (q.dy!==expect) return `dx=${U.hex(q.dx,2)} mismatch`;
+    }
+    return A.tier({t:"object",eid:"DDT-01"})==="context" || "DDT view not activated";
+  });
+
+  t("K20 S-box mapping propagates exact influence cells", () => {
+    const sb=COMPUTED.get("SBOX-01"), x=0x53, A=resolveFact({kind:"sbox-cell",eid:"SBOX-01",index:x});
+    for (let i=0;i<sb.bits;i++){
+      const dy=sb.table[x]^sb.table[x^(1<<i)];
+      for (let j=0;j<sb.bits;j++){
+        const should=!!(dy>>j&1), has=!!A.tier({t:"bitPair",i,j});
+        if (should!==has) return `i${i}->o${j}: ${has} expected ${should}`;
+      }
+    }
+    return true;
+  });
+
+  t("K21 multi-bit DDT differences do not fake influence cells", () => {
+    const A=resolveFact({kind:"ddt-cell",eid:"DDT-01",row:0x03,col:0x01});
+    return (!A || A.ofType("bitPair").length===0) || "multi-bit dx emitted bitPair";
+  });
+
+  t("K22 influence DDT contributors sum to the exact influence count", () => {
+    const i=2,j=5,A=resolveFact({kind:"influence-cell",eid:"INF-01",row:i,col:j});
+    const ddt=COMPUTED.get("DDT-01"), inf=COMPUTED.get("INF-01"), dx=1<<i;
+    let sum=0;
+    for (const {atom} of A.ofType("diff")){
+      if (atom.dx!==dx || !(atom.dy>>j&1)) return `wrong contributor ${atom.dx},${atom.dy}`;
+      sum+=ddt.m[atom.dx*ddt.n+atom.dy];
+    }
+    return sum===inf.m[i*inf.b+j] || `DDT sum ${sum} != influence ${inf.m[i*inf.b+j]}`;
+  });
+
+  t("K23 LAT activates Walsh only when component b matches", () => {
+    const w=COMPUTED.get("WALSH-01"),a=0x35;
+    const good=resolveFact({kind:"lat-cell",eid:"LAT-01",row:a,col:w.component});
+    if (good.tier({t:"object",eid:"WALSH-01"})!=="context") return "matching Walsh not activated";
+    const badB=w.component===1?2:1;
+    const bad=resolveFact({kind:"lat-cell",eid:"LAT-01",row:a,col:badB});
+    return !bad.tier({t:"object",eid:"WALSH-01"}) || "wrong Walsh component activated";
+  });
+
+  t("K24 Walsh ancestry points to its exact LAT cell", () => {
+    const w=COMPUTED.get("WALSH-01"),a=0x21;
+    const A=resolveFact({kind:"walsh-ancestry-stage",eid:"WANC-01",mask:a,stage:3});
+    return A.tier({t:"lin",a,b:w.component})==="contributing" || "LAT cell missing";
+  });
+
+  t("K25 field steps are scoped to their owning computation", () => {
+    const gf=resolveFact({kind:"field-step",eid:"GFMUL-01",index:0});
+    if (!gf.tier({t:"fieldStep",eid:"GFMUL-01",k:0})) return "GF step missing";
+    if (gf.tier({t:"fieldStep",eid:"AESDER-01",k:0})) return "GF step leaked into AES";
+    const aes=resolveFact({kind:"aes-stage",eid:"AESDER-01",index:0});
+    if (!aes.tier({t:"fieldStep",eid:"AESDER-01",k:0})) return "AES step missing";
+    return !aes.tier({t:"fieldStep",eid:"GFMUL-01",k:0}) || "AES step leaked into GF";
+  });
+
+  /* -- supporting invariants ---------------------------------------------- */
+  t("atom keys are stable and field-order independent", () => {
+    const a = atomKey({ t: "diff", dx: 3, dy: 10, tier: "primary" });
+    const b = atomKey({ tier: "context", dy: 10, t: "diff", dx: 3 });
+    return a === b || `${a} != ${b}`;
+  });
+  t("tier precedence never downgrades", () => {
+    const A = new AtomSet();
+    A.add({ t: "in", x: 1 }, "primary").add({ t: "in", x: 1 }, "context");
+    return A.tier({ t: "in", x: 1 }) === "primary" || "downgraded";
+  });
+  t("dimmed is rejected as a tier", () => {
+    try { new AtomSet().add({ t: "in", x: 1 }, "dimmed"); return "accepted"; }
+    catch (_){ return true; }
+  });
+  t("no eval reachable from the command system", () =>
+    (typeof COMMANDS.eval === "undefined" && !/eval|new Function/.test(runCommand.toString())) || "eval reachable");
+  t("DDT row sums equal 2^n", () => {
+    const d = COMPUTED.get("DDT-01");
+    for (let r = 0; r < d.n; r++){
+      let s = 0; for (let c = 0; c < d.n; c++) s += d.m[r * d.n + c];
+      if (s !== d.n) return `row ${U.hex(r)} sums ${s}`;
+    }
+    return true;
+  });
+  t("all DDT entries even for dx != 0", () => {
+    const d = COMPUTED.get("DDT-01");
+    for (let r = 1; r < d.n; r++) for (let c = 0; c < d.n; c++)
+      if (d.m[r * d.n + c] & 1) return `DDT[${U.hex(r)}][${U.hex(c)}] is odd`;
+    return true;
+  });
+  t("topological order places sources before dependents", () =>
+    topoOrder(["DDT-01", "SBOX-01", "INF-01"]).indexOf("SBOX-01") === 0 || "wrong order");
+  t("raster cache invalidates on definition change", () => {
+    const k = rasterKey(getObj("DDT-01"), "categorical|undefined");
+    CACHE.set(k, "sentinel"); markDirty("SBOX-01"); recomputeAll();
+    return !CACHE.has(k) || "stale raster survived";
+  });
+
+  t("UI1 S-box grid keeps a readable cell size for all 256 exact mappings", () => {
+    const o=getObj("SBOX-01"), d=COMPUTED.get("SBOX-01");
+    const g=RENDER["view.sboxGrid"].geom(o,d);
+    return g.n===256 && g.cols===16 && g.cell>=18 || `n=${g.n}, cols=${g.cols}, cell=${g.cell.toFixed(2)}px`;
+  });
+  t("UI2 DDT and LAT cells reach a pickable size within max zoom", () => {
+    for (const id of ["DDT-01","LAT-01"]){
+      const o=getObj(id), d=COMPUTED.get(id), g=RENDER["view.matrix"].geom(o,d);
+      if (g.cell * 12 < 10) return `${id} cell=${g.cell.toFixed(2)}px, at max zoom=${(g.cell*12).toFixed(2)}px`;
+    }
+    return true;
+  });
+  t("UI3 field microscope exact trace fits inside its object frame", () => {
+    const o=getObj("GFMUL-01"), d=COMPUTED.get("GFMUL-01"), g=RENDER["view.fieldMicroscope"].geom(o,d);
+    const bottom=g.top + d.steps.length*g.rowH + 34;
+    return bottom <= o.visual.h || `content bottom ${bottom.toFixed(1)} > frame ${o.visual.h}`;
+  });
+
+  const acFail = out.filter(r => !r[0] && r[1].startsWith("AC")).length;
+  const pass = out.filter(r => r[0]).length;
+  const lines = out.map(([ok, n, m]) => `${ok ? "PASS" : "FAIL"}  ${n}${m ? "  \u2014 " + m : ""}`).join("\n");
+  console.log(`Glassbox self-test ${pass}/${out.length}   acceptance ${10 - acFail}/10\n` + lines);
+  say(`self-test ${pass}/${out.length}, acceptance ${10 - acFail}/10 \u2014 console has detail`);
+  recomputeAll(); requestDraw();
+  return { pass, total: out.length, acFail, out };
+}
+//#endregion
+
+//#region 24 BOOT
+defineType("crypto.sbox", {
+  family: "crypto", eidPrefix: "SBOX", renderer: "view.sboxGrid", factKind: "sbox-cell",
+  compute: computeSbox, defaults: () => ({ bits: 4, table: [] })
+});
+defineType("analysis.ddt", {
+  family: "analysis", eidPrefix: "DDT", renderer: "view.matrix", factKind: "ddt-cell",
+  atomMap: { cellType: "diff", cellRow: "dx", cellCol: "dy",
+             rowType: "dIn", rowKey: "dx", colType: "dOut", colKey: "dy" },
+  compute: computeDDT, defaults: () => ({ colourMode: "categorical" })
+});
+defineType("analysis.lat", {
+  family: "analysis", eidPrefix: "LAT", renderer: "view.matrix", factKind: "lat-cell",
+  atomMap: { cellType: "lin", cellRow: "a", cellCol: "b",
+             rowType: "mIn", rowKey: "a", colType: "mOut", colKey: "b" },
+  compute: computeLAT, defaults: () => ({ colourMode: "diverging" })
+});
+defineType("analysis.walsh", {
+  family: "analysis", eidPrefix: "WALSH", renderer: "view.spectrum", factKind: "walsh-coefficient",
+  compute: computeWalsh, defaults: () => ({ component: 1 })
+});
+defineType("analysis.walshAncestry", {
+  family: "analysis", eidPrefix: "WANC", renderer: "view.walshAncestry", factKind: "walsh-ancestry-stage",
+  compute: computeWalshAncestry, defaults: () => ({ mask: 1 })
+});
+defineType("analysis.anf", {
+  family: "analysis", eidPrefix: "ANF", renderer: "view.anf", factKind: "anf-monomial",
+  compute: computeANF, defaults: () => ({})
+});
+defineType("analysis.influence", {
+  family: "analysis", eidPrefix: "INF", renderer: "view.bitgrid", factKind: "influence-cell",
+  compute: computeInfluence, defaults: () => ({})
+});
+defineType("analysis.aesDerivation", {
+  family: "analysis", eidPrefix: "AESDER", renderer: "view.aesDerivation", factKind: "aes-stage",
+  compute: computeAesDerivation, defaults: () => ({ input: 0x53 })
+});
+defineType("math.gfMultiply", {
+  family: "math", eidPrefix: "GFMUL", renderer: "view.fieldMicroscope", factKind: "field-step",
+  compute: computeGFMultiply, defaults: () => ({ bits: 8, modulus: 0x11B, a: 0x57, b: 0x83 })
+});
+
+function boot(){
+  // The S-box is a construction, not 256 pasted bytes:
+  //   GF(2^8) -> multiplicative inverse -> affine map -> AES S-box
+  // Presented as a canonical 16x16 hex lookup table (row = high nibble,
+  // col = low nibble) — every one of the 256 mappings stays exact and
+  // individually clickable, at a size that matches the panels around it.
+  const sbox = makeObject("crypto.sbox",
+    { bits: 8, construction: "aes", table: [] },
+    { x: 0, y: 0, w: 400, h: 400 });
+
+  // 256x256 exact matrices. Cells are small in world units at the default
+  // fitted view, exactly like DDT/LAT always were, but every cell stays
+  // exactly addressable — the canvas is a zoomable surface, not a fixed
+  // print-out, so precision comes from zooming in rather than from
+  // inflating the whole workspace to paper-at-100% size.
+  const ddt = makeObject("analysis.ddt", {}, { x: 460, y: 0, w: 340, h: 340 });
+  const lat = makeObject("analysis.lat", {}, { x: 840, y: 0, w: 340, h: 340 });
+
+  const anf = makeObject("analysis.anf", {}, { x: 460, y: 390, w: 340, h: 180 });
+  const wal = makeObject("analysis.walsh", { component: 1 }, { x: 840, y: 390, w: 340, h: 180 });
+  const inf = makeObject("analysis.influence", {}, { x: 0, y: 450, w: 300, h: 300 });
+
+  const aesder = makeObject("analysis.aesDerivation", { input: 0x53 }, { x: 1220, y: 0, w: 390, h: 420 });
+  const gfmul = makeObject("math.gfMultiply", { bits: 8, modulus: 0x11B, a: 0x57, b: 0x83 }, { x: 1220, y: 470, w: 390, h: 330 });
+  const wanc = makeObject("analysis.walshAncestry", { mask: 1 }, { x: 1650, y: 0, w: 420, h: 420 });
+
+  S.doc.objects.push(sbox, ddt, lat, anf, wal, inf, aesder, gfmul, wanc);
+  registerDependency(sbox.eid, inf.eid, "derives-from");
+  registerDependency(sbox.eid, ddt.eid, "derives-from");
+  registerDependency(sbox.eid, lat.eid, "derives-from");
+  registerDependency(sbox.eid, anf.eid, "derives-from");
+  registerDependency(sbox.eid, aesder.eid, "compares-with");
+  registerDependency(lat.eid,  wal.eid, "derives-from");   // spectrum slices the LAT
+  registerDependency(wal.eid, wanc.eid, "explains");
+
+  S.doc.annotations.push(makeNote(
+    "AES max |LAT| is 16, so nonlinearity is 128-16 = 112. Which masks reach it?",
+    [{ t: "lin", a: 0x01, b: 0x01 }],
+    { x: 0, y: 780, w: 300, h: 62 }
+  ));
+
+  S.doc.objects.forEach(o => S.computation.dirty.add(o.eid));
+  recomputeAll();
+  snapshot("open");
+
+  resize();
+  zoomExtents();
+  paintObj(); paintTrace(); paintDeps();
+  bus.on("recomputed", () => { paintDeps(); paintObj(); });
+  const d = COMPUTED.get(ddt.eid), l = COMPUTED.get(lat.eid), a = COMPUTED.get(anf.eid);
+  say(`AES S-box: uniformity ${d.uniformity}, nonlinearity ${l.nonlinearity}, degree ${a.degree} \u2014 computed in ${S.computation.lastMs.toFixed(0)}ms`);
+  runSelfTests();
+  setTimeout(()=>showWelcome(true),40);
+}
+boot();
+//#endregion
+</script>
+</body>
+</html>
