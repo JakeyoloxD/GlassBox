@@ -150,6 +150,243 @@ The user should be able to move from the hypothesis to the supporting evidence.
 
 ---
 
+
+## 3A. Input doctrine
+
+Glassbox begins with **data**, not with a choice of analysis tool.
+
+The user should not need to decide whether they want entropy analysis, a DDT, a record detector, a Walsh test, or any other specialist view before supplying input.
+
+The correct model is:
+
+```text
+SOURCE
+  ↓
+NORMALISE TO EXACT BYTES
+  ↓
+DATA-01
+  ↓
+DEPENDENCY GRAPH
+  ↓
+STRUCTURE DISCOVERY
+  ↓
+HYPOTHESES / EVIDENCE
+  ↓
+RELEVANT DRILL-DOWN
+```
+
+All supported input sources should converge on one canonical ingestion path.
+
+Conceptually:
+
+```javascript
+loadInputBytes(bytes, name, sourceKind)
+```
+
+The rest of the structure engine should not need to care whether the bytes came from pasted text, a binary file, an extracted protocol payload, firmware, or a future importer.
+
+### Current intended behaviour
+
+The existing structure-engine input flow is the model to preserve:
+
+- pasted or typed text is converted to UTF-8 bytes
+- `.txt` and `.bin` files are read byte-for-byte
+- both paths become a `Uint8Array`
+- both enter through the same `loadInputBytes()` path
+- `DATA-01` becomes the canonical byte source
+- changing `DATA-01` marks its dependency graph dirty
+- dependent analysis recomputes from the new bytes
+- the UI then presents structure derived from those exact bytes
+
+The input overlay is intentionally simple:
+
+```text
+Give Glassbox bytes to investigate
+
+[ paste / type data ]
+
+Analyse text
+Open .txt / .bin
+Close
+```
+
+This is good product behaviour and should not be replaced by a tool-selection screen.
+
+### Future input sources
+
+Future importers may include:
+
+```text
+hex text
+Base64
+packet / PCAP payloads
+firmware images
+executable sections
+embedded files
+clipboard byte streams
+decoded regions
+decompressed regions
+custom binary formats
+```
+
+These should not become separate analysis engines.
+
+They should either:
+
+1. produce exact bytes and call the canonical ingestion path, or
+2. create a transformation / extraction node whose output becomes a byte source in the same dependency graph.
+
+Example:
+
+```text
+PCAP
+  ↓
+packet extraction
+  ↓
+payload bytes
+  ↓
+structure discovery
+```
+
+Example:
+
+```text
+Base64 text
+  ↓
+decode node
+  ↓
+decoded bytes
+  ↓
+structure discovery
+```
+
+Example:
+
+```text
+Firmware image
+  ↓
+selected region
+  ↓
+region byte source
+  ↓
+crypto drill-down
+```
+
+### Preserve provenance when input is transformed
+
+Direct file input and transformed input are not the same thing.
+
+If bytes are decoded, decompressed, extracted, reordered, XORed, or otherwise transformed, Glassbox must preserve that ancestry.
+
+Do not silently replace the original source with transformed bytes.
+
+The user should be able to trace:
+
+```text
+original input
+  ↓
+transformation
+  ↓
+derived byte source
+  ↓
+finding
+```
+
+### Do not fragment ingestion
+
+Avoid architectures like:
+
+```text
+TXT analyser
+BIN analyser
+PCAP analyser
+Firmware analyser
+Hex analyser
+Crypto analyser
+```
+
+with separate computation pipelines.
+
+That would destroy one of the strongest properties of the current architecture.
+
+Prefer:
+
+```text
+many input adapters
+        ↓
+common byte-source model
+        ↓
+common discovery engine
+```
+
+### File type is metadata, not destiny
+
+A filename or extension may help form hypotheses, but it should not dictate the analysis.
+
+A `.bin` file may contain text.
+
+A text file may contain Base64.
+
+Firmware may contain compressed, executable, textual, and encrypted regions simultaneously.
+
+Glassbox should analyse what the bytes show, not merely what the filename claims.
+
+### Input limits and safety
+
+Input limits should remain explicit and deterministic.
+
+The application should:
+
+- reject inputs above its configured byte limit
+- avoid network access
+- avoid remote parsers
+- avoid executing input
+- treat loaded content purely as data
+- safely parse native Glassbox investigation files separately from arbitrary binary input
+
+Input handling must never become a code-execution path.
+
+### New and Open semantics
+
+`New` should mean:
+
+```text
+start a new byte investigation
+```
+
+not:
+
+```text
+create a blank collection of analysis widgets
+```
+
+`Open input` should mean:
+
+```text
+supply new source data
+```
+
+Native `.glass` investigation files remain a separate concept because they restore an investigation document rather than provide raw bytes.
+
+### Camera exception for new input
+
+Loading completely new source data may initialise or fit the workspace once because the investigation itself has changed.
+
+This is the narrow exception to the normal camera doctrine.
+
+After that initial load:
+
+- semantic selection must not move the camera
+- tutorial steps must not move the camera
+- `Show me` must not move the camera
+- drill-down spawning should avoid moving the camera unless explicitly designed as a new-workspace transition
+- analysis commands must not automatically zoom or pan
+- only explicit View operations should reposition the workspace
+
+Do not use the existence of an input-time `zoomExtents()` call as justification for automatic camera movement elsewhere.
+
+---
+
 ## 4. Crypto is a drill-down, not the front page
 
 Crypto panels should not appear simply because Glassbox contains crypto features.
