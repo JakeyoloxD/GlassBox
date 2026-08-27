@@ -1,0 +1,92 @@
+{
+  "suite": "Glassbox Demonstration Corpus",
+  "purpose": "Deterministic offline samples for one-at-a-time inspection in Glassbox.",
+  "notes": [
+    "All files intentionally use .txt so they can be opened by the current Glassbox raw input picker.",
+    "Several .txt files contain binary bytes and will look garbled in a normal text editor. That is intentional.",
+    "These are synthetic demonstration artefacts, not captures from real systems.",
+    "Expected results describe the signal deliberately embedded in each sample. Exact wording/confidence can vary with engine changes."
+  ],
+  "samples": [
+    {
+      "file": "01_SOC_Shift_Handover_Report.txt",
+      "bytes": 686,
+      "real_life": "A normal SOC/helpdesk handover note or incident summary.",
+      "expected": "TEXT / PLAINTEXT. Glassbox should stay boring and avoid inventing crypto or record structure.",
+      "inspect": "Hypothesis/verdict, Strings, Byte Frequency, Hilbert/Digraph. This is the control sample.",
+      "sha256": "355845cb30702db84b40d7c03920f54bef0511eacbed0118e3886e752cf0b734"
+    },
+    {
+      "file": "02_Building_IoT_Sensor_Telemetry.txt",
+      "bytes": 4624,
+      "real_life": "A binary export from a building-management sensor gateway.",
+      "expected": "Strong fixed-width record structure, ideally a ~48-byte stride with visible recurring fields/columns and strings such as SENSOR01 and ROOM-A.",
+      "inspect": "Stride, Columns, Strings, Digraph/Hilbert, Byte Map. Click the stride/column evidence.",
+      "sha256": "0ad15b17f26e922ff16872fd33030933892a33000fdf728326fbadc8d157d6f7"
+    },
+    {
+      "file": "03_Branch_Firewall_Config_Backup.txt",
+      "bytes": 333,
+      "real_life": "A configuration backup that has been compressed and Base64-wrapped for transport.",
+      "expected": "Encoded/transformed data. The decode chain should identify Base64, then gzip/DEFLATE, and expose readable JSON underneath if the integrated decode ladder is active.",
+      "inspect": "Decode Chain, Hypotheses, Strings after decode, provenance/ancestry. This demonstrates 'wrapped data' reasoning.",
+      "sha256": "27d9069cc1fcf0a3a01c3b7a62801330e0c23ebbea1bf659756267e06cd434f0"
+    },
+    {
+      "file": "04_Payment_Terminal_Encrypted_Batch_ECB_Like.txt",
+      "bytes": 12288,
+      "real_life": "A badly designed legacy payment-terminal batch encrypted in a block mode that leaks repeated plaintext structure.",
+      "expected": "REPEATED BLOCK STRUCTURE / ECB-like behaviour. Repeated aligned 16-byte ciphertext blocks should stand out strongly.",
+      "inspect": "Repeated Blocks, Byte Map, Hypothesis evidence, entropy. Compare directly with sample 05.",
+      "sha256": "42281d9ad1ad4e36f39ec9671403982c2722727a2d6c1f323fc160f345f097fe"
+    },
+    {
+      "file": "05_VPN_Session_Encrypted_Capture_No_Repeats.txt",
+      "bytes": 12288,
+      "real_life": "A ciphertext-like VPN/session payload where equal plaintext blocks do not produce repeated ciphertext blocks.",
+      "expected": "HIGH ENTROPY with little/no repeated block structure. It should be much quieter than sample 04.",
+      "inspect": "Entropy, Repetition, Byte Frequency, Hilbert/Digraph. This is the negative control for ECB detection.",
+      "sha256": "901a3189f9229f434ab3df9801ae822039cbb4cbb9e2bb78430aa65f2894b45d"
+    },
+    {
+      "file": "06_Industrial_Controller_Firmware_Update.txt",
+      "bytes": 4797,
+      "real_life": "A firmware/update image containing headers, embedded resources, a cryptographic lookup table, compressed configuration, and opaque payload data.",
+      "expected": "Mixed structure. Expect signatures/segments/strings plus a candidate 256-byte permutation (AES S-box) around offset 0x900, which should be drillable into the crypto cluster.",
+      "inspect": "Hypotheses, Signatures, Segments, Strings, Entropy, Byte Map. Open the candidate S-box and inspect DDT/LAT/Walsh.",
+      "sha256": "56b2d95dd3243f1587f691d0f487b4855605cfae48d0d12fe4748301644bea87"
+    },
+    {
+      "file": "07_Server_Backup_Image_With_Compressed_Payload.txt",
+      "bytes": 15579,
+      "real_life": "A backup/container image with a readable header/index, padding, a compressed-or-encrypted payload region, then a trailer.",
+      "expected": "Clear entropy/segmentation transitions: readable low/moderate-entropy regions, zero padding, then a high-entropy payload.",
+      "inspect": "Entropy Timeline, Segments, Strings, Hilbert/Byte Map. Click across the boundaries.",
+      "sha256": "60fd1d0a10210381604f543486997bf10b0afb9197dcd2422568f67d74563d3d"
+    },
+    {
+      "file": "08_Legacy_Router_XOR_Obfuscated_Diagnostics.txt",
+      "bytes": 6426,
+      "real_life": "A legacy embedded-device diagnostic/configuration dump hidden with repeating-key XOR.",
+      "expected": "If the XOR detector is active in this build, it should propose a short repeating-key XOR and recover or point toward key CANBERRA / readable plaintext.",
+      "inspect": "Hypotheses, periodicity/stride evidence, decode/transform ancestry if offered. This is a more advanced engine test.",
+      "sha256": "a86529483da2e351c8f618ea8e0ff7a62d1c1f1359d1d1d8b5213f19b838363f"
+    },
+    {
+      "file": "09_Office_Access_Control_Badge_Log.txt",
+      "bytes": 4112,
+      "real_life": "A binary physical-access-control log from office badge readers.",
+      "expected": "Fixed 32-byte records, repeating door names, counters/timestamps/enums, and column structure.",
+      "inspect": "Stride, Columns, Strings, Hypothesis evidence. Compare its inferred layout with sample 02.",
+      "sha256": "f5ad1e270ee901ac6228a661393d4c4e8796a2aaa8e09b9641a10e4d6ed66ff3"
+    },
+    {
+      "file": "10_Incident_Response_Evidence_Bundle.txt",
+      "bytes": 6652,
+      "real_life": "A made-up incident-response collection containing metadata, fixed binary records, an encoded/compressed artefact, padding, and an opaque tail.",
+      "expected": "Multiple structures in one file. Expect several hypotheses rather than one neat classification, with useful segmentation and cross-highlighting.",
+      "inspect": "Hypothesis board first, then Segments, Stride/Columns, Strings, Entropy, Decode Chain. This is the 'show the whole product' sample.",
+      "sha256": "a3bf76f41fe3c266bb4e1f4dfbea7b7541120dbc2c05406525c6f43b42a11d37"
+    }
+  ]
+}
